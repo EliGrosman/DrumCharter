@@ -1,5 +1,8 @@
-def main():
-    print("Hello from audiotochart!")
+from audiotochart.cli import cli
+
+
+def main() -> None:
+    cli()
 
 
 if __name__ == "__main__":

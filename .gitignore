@@ -1,6 +1,8 @@
 # Python-generated files
+.DS_Store
 __pycache__/
 *.py[oc]
+.pytest_cache/
 build/
 dist/
 wheels/
@@ -8,3 +10,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local audio inputs and generated song folders
+*.aac
+*.flac
+*.m4a
+*.mp3
+*.ogg
+*.opus
+*.wav
+out/
