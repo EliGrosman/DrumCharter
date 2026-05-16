@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Callable
 
+from audiotochart.audio import AudioError, get_audio_duration_sec
 from audiotochart.chart.format import DrumDifficulty, SongMetadata, write_chart_file
 from audiotochart.chart.fake import create_fake_drum_chart
 from audiotochart.chart.songini import SongIni, write_song_ini
@@ -41,7 +42,6 @@ def generate_drum_chart_folder(
     artist_name: str,
     charter: str = "AudioToChart (AI)",
     bpm: float = 120.0,
-    measures: int = 16,
     resolution: int = 192,
     on_progress: ProgressCallback | None = None
 ) -> Path:
@@ -57,6 +57,10 @@ def generate_drum_chart_folder(
 
     logger.info("Generating fake drum chart for %s", source_audio.name)
     _notify(STAGE_CHART, "start")
+
+    duration_sec = get_audio_duration_sec(source_audio)
+    logger.info("Audio duration: %.2f s", duration_sec)
+
     stream_name = _stream_filename(source_audio)
     meta = SongMetadata(
         name=song_name,
@@ -66,7 +70,7 @@ def generate_drum_chart_folder(
         offset=0.0,
         music_stream=stream_name,
     )
-    doc = create_fake_drum_chart(song=meta, bpm=bpm, measures=measures)
+    doc = create_fake_drum_chart(song=meta, duration_sec=duration_sec, bpm=bpm)
     expert_notes = doc.drums.get(DrumDifficulty.EXPERT, [])
     if not expert_notes:
         logger.warning("No drum notes were generated; the chart will be empty.")
@@ -79,7 +83,13 @@ def generate_drum_chart_folder(
 
     write_chart_file(doc, folder / "notes.chart")
     write_song_ini(
-        SongIni(name=song_name, artist=artist_name, charter=charter, diff_drums=4),
+        SongIni(
+            name=song_name,
+            artist=artist_name,
+            charter=charter,
+            diff_drums=4,
+            song_length=int(duration_sec * 1000),
+        ),
         folder / "song.ini",
     )
     shutil.copy2(source_audio, folder / stream_name)

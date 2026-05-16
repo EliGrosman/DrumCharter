@@ -111,8 +111,8 @@ def test_multiple_instruments_produce_correct_notes() -> None:
 def test_fake_chart_still_contains_kick_snare_hihat(tmp_path) -> None:
     doc = create_fake_drum_chart(
         song=SongMetadata(name="Test", artist="Art", charter="Ch", resolution=192),
+        duration_sec=8.0,
         bpm=120.0,
-        measures=2,
     )
     text = write_chart(doc)
     assert "0 = N 0 0" in text   # kick

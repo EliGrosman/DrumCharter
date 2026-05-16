@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import struct
+import wave
 from pathlib import Path
 
 import audiotochart.pipeline as pipeline
 
 
+def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:
+    """Create a minimal silent WAV file and return its path."""
+    path = tmp_path / name
+    num_samples = int(duration_sec * sample_rate)
+    with wave.open(str(path), "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(b"\x00\x00" * num_samples)
+    return path
+
+
 def test_generate_drum_chart_folder_writes_clone_hero_song_folder(tmp_path: Path) -> None:
-    source_audio = tmp_path / "song.wav"
-    source_audio.write_bytes(b"RIFF")
+    source_audio = _make_wav(tmp_path, "song.wav", duration_sec=4.0)
 
     folder = pipeline.generate_drum_chart_folder(
         source_audio=source_audio,
@@ -20,14 +33,13 @@ def test_generate_drum_chart_folder_writes_clone_hero_song_folder(tmp_path: Path
     )
 
     assert folder == tmp_path / "out" / "Artist - Song"
-    assert (folder / "song.wav").read_bytes() == b"RIFF"
-    assert (folder / "song.ini").read_text(encoding="utf-8") == (
-        "[Song]\n"
-        "name = Song\n"
-        "artist = Artist\n"
-        "charter = AudioToChart (AI)\n"
-        "diff_drums = 4\n"
-    )
+    assert (folder / "song.wav").read_bytes() == source_audio.read_bytes()
+    ini = (folder / "song.ini").read_text(encoding="utf-8")
+    assert "name = Song" in ini
+    assert "artist = Artist" in ini
+    assert "charter = AudioToChart (AI)" in ini
+    assert "diff_drums = 4" in ini
+    assert "song_length = 4000" in ini
 
     chart = (folder / "notes.chart").read_text(encoding="utf-8")
     assert 'Name = "Song"' in chart
@@ -35,6 +47,15 @@ def test_generate_drum_chart_folder_writes_clone_hero_song_folder(tmp_path: Path
     assert 'MusicStream = "song.wav"' in chart
     assert "0 = B 128000" in chart
     assert "[ExpertDrums]" in chart
-    assert "0 = N 0 0" in chart
-    assert "0 = N 2 0" in chart
-    assert "0 = N 66 0" in chart
+
+    # Verify notes span close to the full 4-second duration
+    # At 128 BPM, 1 beat = 60/128 = 0.46875s, 1 bar = 1.875s
+    # 4 seconds = ~2.13 bars, so last eighth-note should be near tick ~4s worth
+    expert_section = chart.split("[ExpertDrums]")[1].split("}")[0]
+    note_lines = [l.strip() for l in expert_section.strip().splitlines() if "= N" in l]
+    ticks = [int(l.split("=")[0].strip()) for l in note_lines]
+    # Resolution=192, 128 BPM: 1 tick = 0.46875/192 = 0.00244s
+    # 4 seconds ≈ tick 1638
+    max_tick = max(ticks) if ticks else 0
+    assert max_tick >= 1200  # at least ~2.9 seconds worth of ticks
+    assert max_tick <= 2000  # not way past the duration
