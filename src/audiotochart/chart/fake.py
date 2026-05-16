@@ -1,14 +1,6 @@
-from __future__ import annotations
-
-from audiotochart.chart.format import (
-    ChartDocument,
-    DrumDifficulty,
-    DrumNote,
-    SectionEvent,
-    SongMetadata,
-    SyncTrackEvent,
-    bpm_to_chart_integer,
-)
+from audiotochart.chart.convert import hits_to_chart_document
+from audiotochart.chart.format import ChartDocument, SongMetadata
+from audiotochart.drums import DrumHit
 
 
 def create_fake_drum_chart(
@@ -17,33 +9,30 @@ def create_fake_drum_chart(
     bpm: float = 120.0,
     measures: int = 16,
 ) -> ChartDocument:
-    """Create a simple playable Expert drum chart for early CLI testing."""
-    beat = song.resolution
-    eighth = beat // 2
-    bar = beat * 4
+    beats_per_measure = 4
+    eighth = 0.5
+    bar = beats_per_measure * 1.0
 
-    notes: list[DrumNote] = []
+    hits: list[DrumHit] = []
     for measure in range(measures):
         start = measure * bar
 
-        # Eighth-note hi-hat pulse.
+        # Eighth-note hi-hat pulse
         for step in range(8):
-            tick = start + step * eighth
-            notes.append(DrumNote(tick, 2))
-            notes.append(DrumNote(tick, 66))
+            time = start + step * eighth
+            hits.append(DrumHit(time, "hihat"))
 
-        # Basic rock backbeat: kick on 1 and 3, snare on 2 and 4.
-        notes.append(DrumNote(start, 0))
-        notes.append(DrumNote(start + 2 * beat, 0))
-        notes.append(DrumNote(start + beat, 1))
-        notes.append(DrumNote(start + 3 * beat, 1))
+        # Kick on 1 and 3
+        hits.append(DrumHit(start, "kick"))
+        hits.append(DrumHit(start + 2.0, "kick"))
 
-    return ChartDocument(
+        # Snare on 2 and 4
+        hits.append(DrumHit(start + 1.0, "snare"))
+        hits.append(DrumHit(start + 3.0, "snare"))
+
+    return hits_to_chart_document(
+        hits,
         song=song,
-        sync=[
-            SyncTrackEvent(0, "TS 4"),
-            SyncTrackEvent(0, f"B {bpm_to_chart_integer(bpm)}"),
-        ],
-        events=[SectionEvent(0, "section Intro")],
-        drums={DrumDifficulty.EXPERT: notes},
+        bpm=bpm,
+        resolution=song.resolution,
     )
