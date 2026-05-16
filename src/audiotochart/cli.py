@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 from pathlib import Path
 
 import click
+import tempfile
 from rich.console import Console
 
 from audiotochart.pipeline import generate_drum_chart_folder
+from audiotochart.download import download_audio_search
 
 console = Console()
 
@@ -53,25 +56,49 @@ def generate_cmd(
     
     dest = output or Path.cwd()
     
-    if audio is None:
-        console.print("[red]Provide a path to a local audio file.[/red]")
-        raise SystemExit(1)
-
-    if not audio.is_file():
+    if audio is not None and not audio.is_file():
         console.print(f"[red]Not a file: {audio}[/red]")
         raise SystemExit(1)
+    
+    with ExitStack() as stack:
+        if audio is None:
+            if not song or not artist:
+                console.print(
+                    "[red]Provide a path to an audio file or pass both [bold]--song[/bold] and [bold]--artist[/bold] to search YouTube.[/red]"
+                )
+                raise SystemExit(1)
+        
+            # Search YouTube
+            query = f"{artist} {song}"
+            tmp_path = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="audiotochart-yt-")))
+            with console.status(f'[bold green] Download audio: "{query}"...'):
+                wav_path = download_audio_search(query, tmp_path)
+            audio = wav_path
+            song_name = song
+            artist_name = artist
+            folder = _run_generate(
+                source_audio=audio,
+                song_name=song_name,
+                artist_name=artist_name,
+                dest_parent=dest,
+                charter="AudioToChart (AI)",
+                bpm=bpm,
+            )
+            console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
+            return
 
-    song_name = song or audio.stem
-    artist_name = artist or "Unknown"
-    folder = _run_generate(
-        source_audio=audio,
-        song_name=song_name,
-        artist_name=artist_name,
-        dest_parent=dest,
-        charter="AudioToChart",
-        bpm=bpm,
-    )
-    console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
+        assert audio is not None
+        song_name = song or audio.stem
+        artist_name = artist or "Unknown"
+        folder = _run_generate(
+            source_audio=audio,
+            song_name=song_name,
+            artist_name=artist_name,
+            dest_parent=dest,
+            charter="AudioToChart (AI)",
+            bpm=bpm,
+        )
+        console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 
 
 if __name__ == "__main__":
