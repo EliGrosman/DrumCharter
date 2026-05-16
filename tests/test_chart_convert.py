@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from audiotochart.chart import ChartDocument, DrumDifficulty, DrumNote, SectionEvent, SyncTrackEvent, write_chart
+from audiotochart.chart import DrumDifficulty, SectionEvent
 from audiotochart.chart.convert import (
     INSTRUMENT_MAP,
     hits_to_chart_document,
@@ -108,14 +108,15 @@ def test_multiple_instruments_produce_correct_notes() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_fake_chart_still_contains_kick_snare_hihat(tmp_path) -> None:
+def test_fake_chart_still_contains_kick_snare_hihat() -> None:
     doc = create_fake_drum_chart(
         song=SongMetadata(name="Test", artist="Art", charter="Ch", resolution=192),
         duration_sec=8.0,
         bpm=120.0,
     )
-    text = write_chart(doc)
-    assert "0 = N 0 0" in text   # kick
-    assert "0 = N 1 0" in text   # snare
-    assert "0 = N 2 0" in text   # hihat pad
-    assert "0 = N 66 0" in text  # hihat cymbal
+    expert = doc.drums.get(DrumDifficulty.EXPERT, [])
+    note_numbers = {note.note for note in expert}
+    assert 0 in note_numbers   # kick
+    assert 1 in note_numbers   # snare
+    assert 2 in note_numbers   # hihat pad
+    assert 66 in note_numbers  # hihat cymbal

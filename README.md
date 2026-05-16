@@ -13,6 +13,12 @@ format, and folder output before adding audio inference.
 uv run audiotochart generate ./song.wav --song "Test Song" --artist "Test Artist" -o ./out
 ```
 
+For development, you can drive the drum chart from a General MIDI drum file:
+
+```bash
+uv run audiotochart generate ./song.wav --from-midi ./drums.mid --song "Test Song" --artist "Test Artist" -o ./out
+```
+
 The output folder contains:
 
 ```text

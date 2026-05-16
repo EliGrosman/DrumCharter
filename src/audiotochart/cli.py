@@ -20,6 +20,7 @@ def _run_generate(
     dest_parent: Path,
     charter: str,
     bpm: float,
+    from_midi: Path | None,
 ) -> Path:
 
     try:
@@ -30,6 +31,7 @@ def _run_generate(
             artist_name=artist_name,
             charter=charter,
             bpm=bpm,
+            from_midi=from_midi,
         )
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")
@@ -44,13 +46,15 @@ def cli() -> None:
 @click.option("--song", default=None, help="Song title for chart metadata")
 @click.option("--artist", default=None, help="Artist name for chart metadata")
 @click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Parent folder for the new song directory")
-@click.option("--bpm", type=float, default=120.0, show_default=True, help="BPM for the generated fake chart")
+@click.option("--bpm", type=float, default=120.0, show_default=True, help="BPM used for chart timing")
+@click.option("--from-midi", type=click.Path(path_type=Path, exists=False), default=None, help="Developer path: build drum notes from a MIDI drum file")
 def generate_cmd(
     audio: Path | None,
     song: str | None,
     artist: str | None,
     output: Path | None,
     bpm: float,
+    from_midi: Path | None,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
     
@@ -58,6 +62,9 @@ def generate_cmd(
     
     if audio is not None and not audio.is_file():
         console.print(f"[red]Not a file: {audio}[/red]")
+        raise SystemExit(1)
+    if from_midi is not None and not from_midi.is_file():
+        console.print(f"[red]Not a file: {from_midi}[/red]")
         raise SystemExit(1)
     
     with ExitStack() as stack:
@@ -83,6 +90,7 @@ def generate_cmd(
                 dest_parent=dest,
                 charter="AudioToChart (AI)",
                 bpm=bpm,
+                from_midi=from_midi,
             )
             console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
             return
@@ -97,6 +105,7 @@ def generate_cmd(
             dest_parent=dest,
             charter="AudioToChart (AI)",
             bpm=bpm,
+            from_midi=from_midi,
         )
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 

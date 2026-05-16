@@ -20,3 +20,4 @@ wheels/
 *.opus
 *.wav
 out/
+examples/
