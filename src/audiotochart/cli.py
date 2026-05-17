@@ -61,11 +61,13 @@ def _resolve_backend(backend: str) -> type:
 
 
 def _setup_logging(verbose: bool) -> None:
-    level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(
-        level=level,
+        level=logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
         force=True,
+    )
+    logging.getLogger("audiotochart").setLevel(
+        logging.DEBUG if verbose else logging.WARNING
     )
 
 
@@ -243,61 +245,6 @@ def _run_interactive(cfg: dict) -> dict:
         "_settings_changed": True,
     }
 
-    console.print("\n[bold]Choose audio source:[/bold]")
-    console.print("  [1] Local audio file")
-    console.print("  [2] YouTube search (requires song name + artist)")
-    source_choice = Prompt.ask("Select", choices=["1", "2"], default="1")
-
-    if source_choice == "2":
-        song_name = Prompt.ask("Song name")
-        artist_name = Prompt.ask("Artist name")
-        source_audio = None
-    else:
-        audio_path = None
-        while audio_path is None:
-            raw = Prompt.ask("Audio file path")
-            p = Path(raw).expanduser().resolve()
-            if p.is_file():
-                audio_path = p
-            else:
-                console.print(f"[red]Not a file: {p}[/red]")
-        source_audio = audio_path
-        song_name = Prompt.ask("Song name", default=audio_path.stem)
-        artist_name = Prompt.ask("Artist name", default="Unknown")
-
-    backend = Prompt.ask("Backend", choices=list(BACKENDS), default=cfg.get("backend", "model"))
-
-    model_dir: str | None = cfg.get("model_dir")
-    if backend == "model":
-        raw = Prompt.ask("Model directory", default=model_dir or "")
-        model_dir = str(Path(raw).expanduser().resolve()) if raw else model_dir
-
-    separate_drums = Confirm.ask("Separate drums with Demucs?", default=cfg.get("separate_drums", True))
-    device = Prompt.ask("Device", choices=list(VALID_TORCH_DEVICES), default=cfg.get("device", "auto"))
-    quantize = Prompt.ask(
-        "Quantization",
-        choices=list(QUANTIZE_CHOICES),
-        default=cfg.get("quantize", "1/16"),
-    )
-    tom_consistency = Confirm.ask("Enable tom consistency?", default=cfg.get("tom_consistency", False))
-
-    output_raw = Prompt.ask("Output directory", default=cfg.get("output_dir", "."))
-    output_dir = Path(output_raw).expanduser().resolve()
-
-    return {
-        "source_audio": source_audio,
-        "song_name": song_name,
-        "artist_name": artist_name,
-        "backend": backend,
-        "model_dir": Path(model_dir).expanduser().resolve() if model_dir else None,
-        "separate_drums": separate_drums,
-        "device": device,
-        "quantize": quantize,
-        "tom_consistency": tom_consistency,
-        "output_dir": output_dir,
-        "_settings_changed": True,
-    }
-
 
 @click.group()
 def cli() -> None:
@@ -418,9 +365,9 @@ def generate_cmd(
                     "separate_drums": params["separate_drums"],
                     "quantize": params["quantize"],
                     "tom_consistency": params["tom_consistency"],
-                "charter": user_config.get("charter", "AudioToChart"),
-                "output_dir": str(params["output_dir"]),
-            })
+                    "charter": user_config.get("charter", "AudioToChart"),
+                    "output_dir": str(params["output_dir"]),
+                })
 
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
         return
