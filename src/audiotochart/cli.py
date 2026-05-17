@@ -9,8 +9,13 @@ from rich.console import Console
 
 from audiotochart.pipeline import generate_drum_chart_folder
 from audiotochart.download import download_audio_search
+from audiotochart.inference.fake import FakeTranscriber
 
 console = Console()
+
+BACKENDS: dict[str, type[FakeTranscriber]] = {
+    "fake": FakeTranscriber,
+}
 
 def _run_generate(
     *,
@@ -21,8 +26,9 @@ def _run_generate(
     charter: str,
     bpm: float | None,
     from_midi: Path | None,
+    backend: str = "fake",
 ) -> Path:
-
+    transcriber = BACKENDS[backend]()
     try:
         return generate_drum_chart_folder(
             source_audio=source_audio,
@@ -32,6 +38,7 @@ def _run_generate(
             charter=charter,
             bpm=bpm,
             from_midi=from_midi,
+            transcriber=transcriber,
         )
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")
@@ -48,6 +55,7 @@ def cli() -> None:
 @click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Parent folder for the new song directory")
 @click.option("--bpm", type=float, default=None, help="BPM for chart timing (auto-detected if not provided)")
 @click.option("--from-midi", type=click.Path(path_type=Path, exists=False), default=None, help="Developer path: build drum notes from a MIDI drum file")
+@click.option("--backend", type=click.Choice(["fake"]), default="fake", help="Inference backend to use")
 def generate_cmd(
     audio: Path | None,
     song: str | None,
@@ -55,6 +63,7 @@ def generate_cmd(
     output: Path | None,
     bpm: float | None,
     from_midi: Path | None,
+    backend: str,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
     
@@ -92,6 +101,7 @@ def generate_cmd(
                 charter="AudioToChart (AI)",
                 bpm=bpm,
                 from_midi=from_midi,
+                backend=backend,
             )
             console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
             return
@@ -108,6 +118,7 @@ def generate_cmd(
             charter="AudioToChart (AI)",
             bpm=bpm,
             from_midi=from_midi,
+            backend=backend,
         )
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 

@@ -3,9 +3,9 @@
 AudioToChart is a learning-first CLI for generating Clone Hero drum chart
 folders from local audio files.
 
-The current version is the first milestone: it writes a valid song folder with
-a deterministic fake Expert drum chart. This proves the packaging, CLI, chart
-format, and folder output before adding audio inference.
+The current version writes a valid song folder with a deterministic fake drum chart, 
+optional MIDI-driven drum notes, tempo/beat-grid detection, post-processing, 
+and generated lower difficulties. Audio inference backends have not been added yet.
 
 ## Usage
 

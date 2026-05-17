@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Callable
 
 from audiotochart.audio import get_audio_duration_sec
+from audiotochart.chart.convert import hits_to_chart_document
 from audiotochart.chart.difficulty import generate_difficulties
 from audiotochart.chart.format import DrumDifficulty, SongMetadata, write_chart_file
-from audiotochart.chart.fake import create_fake_drum_chart
 from audiotochart.chart.midi import midi_to_chart_document
 from audiotochart.chart.songini import SongIni, write_song_ini
+from audiotochart.inference.base import DrumTranscriber
 from audiotochart.tempo import TempoError, detect_beat_grid
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ def generate_drum_chart_folder(
     resolution: int = 192,
     from_midi: Path | None = None,
     quantize_divisor: int | None = None,
+    transcriber: DrumTranscriber | None = None,
     on_progress: ProgressCallback | None = None
 ) -> Path:
     """Create a Clone Hero song folder with ``notes.chart``, ``song.ini``, and audio"""
@@ -93,10 +95,16 @@ def generate_drum_chart_folder(
         music_stream=stream_name,
     )
     if from_midi is None:
-        doc = create_fake_drum_chart(
+        if transcriber is None:
+            from audiotochart.inference.fake import FakeTranscriber
+            transcriber = FakeTranscriber()
+        hits = transcriber.transcribe(source_audio)
+        logger.info("Transcriber returned %d drum hits", len(hits))
+        doc = hits_to_chart_document(
+            hits,
             song=meta,
-            duration_sec=duration_sec,
             bpm=bpm,
+            resolution=resolution,
             beat_times=beat_times,
             quantize_divisor=quantize_divisor,
         )
