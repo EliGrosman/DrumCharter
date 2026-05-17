@@ -74,7 +74,7 @@ class ModelTranscriber:
 
         import torch
 
-        is_adtof = architecture == "adtof_frame_rnn" or variant in ("pro8", "full5", "pro9")
+        is_adtof = architecture == "adtof_frame_rnn" or variant in ("pro8", "full5")
 
         if is_adtof:
             spec, fps = _compute_adtof_spectrogram(audio_path)

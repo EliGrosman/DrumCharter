@@ -168,7 +168,6 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
         _VARIANT_TO_ARCH = {
             "pro8": "adtof_frame_rnn",
             "full5": "adtof_frame_rnn",
-            "pro9": "adtof_frame_rnn",
         }
         arch_name = _VARIANT_TO_ARCH.get(variant)
     if not arch_name:
