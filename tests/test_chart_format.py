@@ -54,7 +54,7 @@ def test_write_chart_matches_design_shape() -> None:
         song=SongMetadata(
             name="Enter Sandman",
             artist="Metallica",
-            charter="ChartGen (AI)",
+            charter="AudioToChart (AI)",
             music_stream="song.ogg",
         ),
         sync=[

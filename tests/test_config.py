@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from audiotochart.config import DEFAULT_CONFIG, load_config, save_config
+from audiotochart.config import DEFAULT_CHARTER, DEFAULT_CONFIG, load_config, save_config
 
 
 def test_config_save_load_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -57,6 +57,24 @@ def test_config_new_keys_merged_from_defaults(tmp_path: Path, monkeypatch: pytes
     assert loaded["backend"] == "adtof"
     assert loaded["device"] == DEFAULT_CONFIG["device"]
     assert loaded["quantize"] == DEFAULT_CONFIG["quantize"]
+
+
+def test_default_charter_is_audiotochart_ai() -> None:
+    assert DEFAULT_CONFIG["charter"] == DEFAULT_CHARTER
+    assert DEFAULT_CHARTER == "AudioToChart (AI)"
+
+
+def test_legacy_bare_default_charter_is_migrated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+
+    save_config({"charter": "AudioToChart"})
+
+    loaded = load_config()
+    assert loaded["charter"] == DEFAULT_CHARTER
 
 
 def test_config_save_creates_parent_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

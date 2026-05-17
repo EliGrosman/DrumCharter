@@ -7,6 +7,7 @@ _CONFIG_DIR = Path.home() / ".config" / "audiotochart"
 _CONFIG_PATH = _CONFIG_DIR / "config.json"
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
+DEFAULT_CHARTER = "AudioToChart (AI)"
 
 DEFAULT_CONFIG: dict = {
     "backend": "model",
@@ -16,7 +17,7 @@ DEFAULT_CONFIG: dict = {
     "separate_drums": True,
     "quantize": "1/16",
     "tom_consistency": False,
-    "charter": "AudioToChart",
+    "charter": DEFAULT_CHARTER,
     "output_dir": ".",
 }
 
@@ -27,6 +28,8 @@ def load_config() -> dict:
             data = json.load(f)
         merged = dict(DEFAULT_CONFIG)
         merged.update(data)
+        if merged.get("charter") in ("", None, "AudioToChart"):
+            merged["charter"] = DEFAULT_CHARTER
         return merged
     except (FileNotFoundError, json.JSONDecodeError):
         return dict(DEFAULT_CONFIG)

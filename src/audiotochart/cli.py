@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.status import Status
 
-from audiotochart.config import DEFAULT_CONFIG, config_exists, load_config, save_config
+from audiotochart.config import DEFAULT_CHARTER, config_exists, load_config, save_config
 from audiotochart.device import VALID_TORCH_DEVICES
 from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
@@ -407,7 +407,7 @@ def generate_cmd(
                 song_name=params["song_name"],
                 artist_name=params["artist_name"],
                 dest_parent=params["output_dir"],
-                charter=user_config.get("charter", "AudioToChart"),
+                charter=user_config.get("charter", DEFAULT_CHARTER),
                 bpm=bpm,
                 from_midi=from_midi,
                 backend=params["backend"],
@@ -430,7 +430,7 @@ def generate_cmd(
                     "separate_drums": params["separate_drums"],
                     "quantize": params["quantize"],
                     "tom_consistency": params["tom_consistency"],
-                    "charter": user_config.get("charter", "AudioToChart"),
+                    "charter": user_config.get("charter", DEFAULT_CHARTER),
                     "output_dir": str(params["output_dir"]),
                 })
 
@@ -484,7 +484,7 @@ def generate_cmd(
                 song_name=song_name,
                 artist_name=artist_name,
                 dest_parent=dest,
-                charter="AudioToChart (AI)",
+                charter=DEFAULT_CHARTER,
                 bpm=bpm,
                 from_midi=from_midi,
                 backend=backend,
@@ -508,7 +508,7 @@ def generate_cmd(
             song_name=song_name,
             artist_name=artist_name,
             dest_parent=dest,
-            charter="AudioToChart (AI)",
+            charter=DEFAULT_CHARTER,
             bpm=bpm,
             from_midi=from_midi,
             backend=backend,
