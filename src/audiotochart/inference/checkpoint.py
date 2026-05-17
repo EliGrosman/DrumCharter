@@ -4,7 +4,8 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+
+from audiotochart.chart.drum_vocab import PRO8_LABELS
 
 log = logging.getLogger(__name__)
 
@@ -21,49 +22,8 @@ class ModelBundle:
     device: str = "cpu"
 
 
-MODEL_REGISTRY: dict[str, Callable[[dict], object]] = {}
-
-PRO8_LABELS = [
-    "kick",
-    "snare",
-    "hihat",
-    "tom_yellow",
-    "ride",
-    "tom_blue",
-    "crash",
-    "tom_green",
-]
-FULL5_LABELS = [
-    "kick",
-    "snare",
-    "hihat",
-    "ride",
-    "crash",
-]
-
-_VARIANT_TO_LABELS: dict[str, list[str]] = {
-    "pro8": PRO8_LABELS,
-    "full5": FULL5_LABELS,
-}
-
-_VARIANT_TO_ARCH: dict[str, str] = {
-    "pro8": "adtof_frame_rnn",
-    "full5": "adtof_frame_rnn",
-}
-
-
-def register_architecture(name: str) -> Callable:
-    """Decorator to register a model builder in the global registry.
-
-    The builder receives the config dict and must return an ``nn.Module``
-    whose ``.forward()`` returns **logits** (pre-sigmoid), shape ``[B, T, C]``.
-    """
-
-    def decorator(builder: Callable[[dict], object]) -> Callable[[dict], object]:
-        MODEL_REGISTRY[name] = builder
-        return builder
-
-    return decorator
+PRO8_VARIANT = "pro8"
+PRO8_ARCHITECTURE = "adtof_frame_rnn"
 
 
 def _build_simple_cnn(config: dict) -> object:
@@ -93,9 +53,6 @@ def _build_simple_cnn(config: dict) -> object:
             return self.fc(x)
 
     return _SimpleCNN()
-
-
-register_architecture("simple_cnn")(_build_simple_cnn)
 
 
 def _build_adtof_frame_rnn(config: dict) -> object:
@@ -139,7 +96,23 @@ def _build_adtof_frame_rnn(config: dict) -> object:
     return model
 
 
-register_architecture("adtof_frame_rnn")(_build_adtof_frame_rnn)
+def _is_known_architecture(architecture: str) -> bool:
+    return architecture == "simple_cnn" or architecture == PRO8_ARCHITECTURE
+
+
+def _known_architectures_text() -> str:
+    return f"simple_cnn, {PRO8_ARCHITECTURE}"
+
+
+def _build_model_for_architecture(architecture: str, config: dict) -> object:
+    """Build a model for a known architecture name."""
+    if architecture == "simple_cnn":
+        return _build_simple_cnn(config)
+    if architecture == PRO8_ARCHITECTURE:
+        return _build_adtof_frame_rnn(config)
+    raise ModelLoadError(
+        f"Unknown architecture {architecture!r}. Supported: {_known_architectures_text()}"
+    )
 
 
 def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
@@ -148,13 +121,13 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
     The directory must contain:
 
     * ``config.json`` — model metadata including an ``"architecture"`` key
-      (or a ``"variant"`` key that maps to a well-known architecture).
+      (or ``"variant": "pro8"`` for the built-in CloneHero-ChartGen model).
     * ``weights.pt`` or ``best.pt`` — ``state_dict`` for the model.
     * ``labels.json`` (optional) — list of instrument label strings.
-      If missing, labels are derived from ``variant`` (``"pro8"`` or ``"full5"``).
+      If missing, labels are derived from ``variant`` (``"pro8"``).
 
-    The architecture name in ``config["architecture"]`` (or ``config["variant"]``
-    mapped via ``_VARIANT_TO_ARCH``) is looked up in :data:`MODEL_REGISTRY`.
+    Supported architecture names are ``"simple_cnn"`` for tests and
+    ``"adtof_frame_rnn"`` for the built-in pro8 model.
     """
     import torch
 
@@ -170,25 +143,22 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
     arch_name = config.get("architecture")
     variant = config.get("variant")
 
-    if variant is not None and variant not in _VARIANT_TO_LABELS:
-        known = ", ".join(sorted(_VARIANT_TO_LABELS))
+    if variant is not None and variant != PRO8_VARIANT:
         raise ModelLoadError(
-            f"Unsupported variant {variant!r}. Known variants: {known}"
+            f"Unsupported variant {variant!r}. Known variants: {PRO8_VARIANT}"
         )
 
-    if arch_name is None and variant is not None:
-        arch_name = _VARIANT_TO_ARCH.get(variant)
+    if arch_name is None and variant == PRO8_VARIANT:
+        arch_name = PRO8_ARCHITECTURE
     if not arch_name:
         raise ModelLoadError(
             f"config.json must contain an 'architecture' key. "
             f"Found keys: {list(config.keys())}"
         )
 
-    builder = MODEL_REGISTRY.get(arch_name)
-    if builder is None:
-        known = ", ".join(sorted(MODEL_REGISTRY))
+    if not _is_known_architecture(arch_name):
         raise ModelLoadError(
-            f"Unknown architecture {arch_name!r}. Registered: {known}"
+            f"Unknown architecture {arch_name!r}. Supported: {_known_architectures_text()}"
         )
 
     weights_candidates = [
@@ -211,8 +181,8 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
         labels: list[str] = json.loads(labels_path.read_text(encoding="utf-8"))
         if not isinstance(labels, list) or not all(isinstance(s, str) for s in labels):
             raise ModelLoadError("labels.json must contain a list of strings")
-    elif variant in _VARIANT_TO_LABELS:
-        labels = list(_VARIANT_TO_LABELS[variant])
+    elif variant == PRO8_VARIANT:
+        labels = list(PRO8_LABELS)
         log.info("labels.json not found; using variant %r labels: %s", variant, labels)
     else:
         raise ModelLoadError(
@@ -235,7 +205,7 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
         num_classes,
         config.get("n_mels", 84),
     )
-    model = builder(config)
+    model = _build_model_for_architecture(arch_name, config)
 
     state = torch.load(str(weights_path), map_location=device, weights_only=True)
     if isinstance(state, dict) and "model_state" in state:

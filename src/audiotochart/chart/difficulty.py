@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
+from audiotochart.chart.drum_vocab import (
+    CYMBAL_BLUE,
+    CYMBAL_BY_PAD,
+    CYMBAL_GREEN,
+    CYMBAL_MODIFIERS,
+    CYMBAL_YELLOW,
+    KICK,
+    PAD_BY_CYMBAL,
+    PAD_NOTES,
+    SNARE,
+    YELLOW_PAD,
+    BLUE_PAD,
+    GREEN_PAD,
+)
 from audiotochart.chart.format import ChartDocument, DrumDifficulty, DrumNote
-
-KICK = 0
-SNARE = 1
-YELLOW_PAD = 2
-BLUE_PAD = 3
-GREEN_PAD = 4
-CYMBAL_YELLOW = 66
-CYMBAL_BLUE = 67
-CYMBAL_GREEN = 68
-
-_PAD_NOTES = {KICK, SNARE, YELLOW_PAD, BLUE_PAD, GREEN_PAD}
-_CYMBAL_MODIFIERS = {CYMBAL_YELLOW, CYMBAL_BLUE, CYMBAL_GREEN}
-_PAD_FOR_CYMBAL = {
-    CYMBAL_YELLOW: YELLOW_PAD,
-    CYMBAL_BLUE: BLUE_PAD,
-    CYMBAL_GREEN: GREEN_PAD,
-}
 
 
 def _group_by_tick(notes: list[DrumNote]) -> dict[int, list[DrumNote]]:
@@ -30,15 +27,11 @@ def _group_by_tick(notes: list[DrumNote]) -> dict[int, list[DrumNote]]:
 
 
 def _tick_pad_notes(tick_notes: list[DrumNote]) -> set[int]:
-    return {note.note for note in tick_notes if note.note in _PAD_NOTES}
+    return {note.note for note in tick_notes if note.note in PAD_NOTES}
 
 
 def _has_cymbal_at_tick(tick_notes: list[DrumNote], pad: int) -> bool:
-    modifier = {
-        YELLOW_PAD: CYMBAL_YELLOW,
-        BLUE_PAD: CYMBAL_BLUE,
-        GREEN_PAD: CYMBAL_GREEN,
-    }.get(pad)
+    modifier = CYMBAL_BY_PAD.get(pad)
     if modifier is None:
         return False
     return any(note.note == modifier for note in tick_notes)
@@ -52,11 +45,7 @@ def _append_pad_with_cymbal(
     tick_notes: list[DrumNote],
 ) -> None:
     out.append(DrumNote(tick=tick, note=pad))
-    modifier = {
-        YELLOW_PAD: CYMBAL_YELLOW,
-        BLUE_PAD: CYMBAL_BLUE,
-        GREEN_PAD: CYMBAL_GREEN,
-    }.get(pad)
+    modifier = CYMBAL_BY_PAD.get(pad)
     if modifier is not None and any(note.note == modifier for note in tick_notes):
         out.append(DrumNote(tick=tick, note=modifier))
 
@@ -70,7 +59,7 @@ def _thin_notes(
     out: list[DrumNote] = []
 
     for note in sorted(notes, key=lambda n: (n.tick, n.note, n.length)):
-        if note.note in _CYMBAL_MODIFIERS:
+        if note.note in CYMBAL_MODIFIERS:
             continue
         if priority and note.note in priority:
             last_tick_by_pad[note.note] = note.tick
@@ -84,7 +73,7 @@ def _thin_notes(
 
     surviving_pads = {(note.tick, note.note) for note in out}
     for note in notes:
-        pad = _PAD_FOR_CYMBAL.get(note.note)
+        pad = PAD_BY_CYMBAL.get(note.note)
         if pad is not None and (note.tick, pad) in surviving_pads:
             out.append(note)
 

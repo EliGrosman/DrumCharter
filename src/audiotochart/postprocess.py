@@ -5,9 +5,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from audiotochart.chart.drum_vocab import HAND_INSTRUMENT_PRIORITY, KICK_LABEL
 from audiotochart.drums import DrumHit
 
 QUANTIZE_DIVISORS = (4, 8, 16, 32)
+QUANTIZE_CHOICES = {
+    "none": None,
+    **{f"1/{divisor}": divisor for divisor in QUANTIZE_DIVISORS},
+}
 DEFAULT_SNAP_DISTANCE_SEC = 0.05
 
 
@@ -188,10 +193,8 @@ def snap_hits_to_grid(
     ]
 
 
-# Hand-lane instruments (everything except kick)
-_HAND_LANES = {"snare", "crash", "ride", "hihat", "tom_yellow", "tom_blue", "tom_green"}
 # Preference order for resolving conflicts (highest preference first)
-_HAND_PREF = ["snare", "crash", "ride", "hihat", "tom_yellow", "tom_blue", "tom_green"]
+_HAND_PREF = list(HAND_INSTRUMENT_PRIORITY)
 
 
 def limit_simultaneous_hits(hits: list[DrumHit]) -> list[DrumHit]:
@@ -224,8 +227,8 @@ def limit_simultaneous_hits(hits: list[DrumHit]) -> list[DrumHit]:
     result: list[DrumHit] = []
     for window in windows:
         # Separate kick from hand-lane hits
-        kicks = [h for h in window if h.instrument == "kick"]
-        hands = [h for h in window if h.instrument != "kick"]
+        kicks = [h for h in window if h.instrument == KICK_LABEL]
+        hands = [h for h in window if h.instrument != KICK_LABEL]
 
         # Sort hand hits by preference (highest first)
         hands.sort(key=lambda h: _HAND_PREF.index(h.instrument) if h.instrument in _HAND_PREF else 999)

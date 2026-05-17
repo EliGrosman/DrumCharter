@@ -12,6 +12,14 @@ from audiotochart.chart.format import (
     SyncTrackEvent,
     bpm_to_chart_integer,
 )
+from audiotochart.chart.drum_vocab import (
+    CYMBAL_BY_PAD,
+    HAND_LANE_PRIORITY,
+    HAND_PAD_NOTES,
+    INSTRUMENT_TO_CHART_NOTES,
+    KICK,
+    MAX_HAND_LANES,
+)
 from audiotochart.drums import DrumHit
 from audiotochart.postprocess import (
     BeatGrid,
@@ -165,19 +173,7 @@ def build_sync_track_from_beats(
     return events
 
 
-INSTRUMENT_MAP: dict[str, tuple[int, int | None]] = {
-    "kick": (0, None),
-    "snare": (1, None),
-    "hihat": (2, 66),
-    "tom_yellow": (2, None),
-    "ride": (3, 67),
-    "tom_blue": (3, None),
-    "crash": (4, 68),
-    "tom_green": (4, None),
-}
-
-_PAD_TO_CYMBAL: dict[int, int] = {2: 66, 3: 67, 4: 68}
-_MAX_HAND_LANES = 2
+INSTRUMENT_MAP = INSTRUMENT_TO_CHART_NOTES
 
 
 def _cap_simultaneous_notes(notes: list[DrumNote]) -> list[DrumNote]:
@@ -187,25 +183,24 @@ def _cap_simultaneous_notes(notes: list[DrumNote]) -> list[DrumNote]:
 
     for tick, group in groupby(sorted_notes, key=lambda note: note.tick):
         notes_at_tick = [note.note for note in group]
-        has_kick = 0 in notes_at_tick
-        hand_lanes = sorted({note for note in notes_at_tick if 1 <= note <= 4})
+        has_kick = KICK in notes_at_tick
+        hand_lanes = sorted({note for note in notes_at_tick if note in HAND_PAD_NOTES})
 
-        if len(hand_lanes) <= _MAX_HAND_LANES:
+        if len(hand_lanes) <= MAX_HAND_LANES:
             out.extend(DrumNote(tick, note) for note in notes_at_tick)
             continue
 
-        lane_priority = {1: 0, 4: 1, 3: 2, 2: 3}
         keep_lanes = set(
-            sorted(hand_lanes, key=lambda lane: lane_priority.get(lane, lane))[
-                :_MAX_HAND_LANES
+            sorted(hand_lanes, key=lambda lane: HAND_LANE_PRIORITY.get(lane, lane))[
+                :MAX_HAND_LANES
             ]
         )
 
         if has_kick:
-            out.append(DrumNote(tick, 0))
+            out.append(DrumNote(tick, KICK))
         for lane in sorted(keep_lanes):
             out.append(DrumNote(tick, lane))
-            cymbal = _PAD_TO_CYMBAL.get(lane)
+            cymbal = CYMBAL_BY_PAD.get(lane)
             if cymbal is not None and cymbal in notes_at_tick:
                 out.append(DrumNote(tick, cymbal))
 

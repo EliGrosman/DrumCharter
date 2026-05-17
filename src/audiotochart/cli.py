@@ -13,6 +13,7 @@ from rich.status import Status
 from audiotochart.pipeline import STAGES, generate_drum_chart_folder
 from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
+from audiotochart.postprocess import QUANTIZE_CHOICES
 
 if TYPE_CHECKING:
     from audiotochart.inference.base import DrumTranscriber
@@ -62,15 +63,6 @@ def _setup_logging(verbose: bool) -> None:
         format="%(levelname)s %(name)s: %(message)s",
         force=True,
     )
-
-QUANTIZE_CHOICES = {
-    "none": None,
-    "1/4": 4,
-    "1/8": 8,
-    "1/16": 16,
-    "1/32": 32,
-}
-
 
 def _run_generate(
     *,

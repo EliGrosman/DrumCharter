@@ -6,7 +6,12 @@ from pathlib import Path
 import numpy as np
 
 from audiotochart.drums import DrumHit
-from audiotochart.inference.checkpoint import ModelBundle, load_model_bundle
+from audiotochart.inference.checkpoint import (
+    ModelBundle,
+    PRO8_ARCHITECTURE,
+    PRO8_VARIANT,
+    load_model_bundle,
+)
 
 log = logging.getLogger(__name__)
 
@@ -74,7 +79,7 @@ class ModelTranscriber:
 
         import torch
 
-        is_adtof = architecture == "adtof_frame_rnn" or variant in ("pro8", "full5")
+        is_adtof = architecture == PRO8_ARCHITECTURE or variant == PRO8_VARIANT
 
         if is_adtof:
             spec, fps = _compute_adtof_spectrogram(audio_path)

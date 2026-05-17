@@ -2,7 +2,39 @@ from collections.abc import Sequence
 
 from audiotochart.chart.convert import hits_to_chart_document
 from audiotochart.chart.format import ChartDocument, SongMetadata
+from audiotochart.chart.drum_vocab import HIHAT_LABEL, KICK_LABEL, SNARE_LABEL
 from audiotochart.drums import DrumHit
+
+
+def make_fake_drum_hits(duration_sec: float) -> list[DrumHit]:
+    beats_per_measure = 4
+    eighth = 0.5
+    bar = beats_per_measure * 1.0
+
+    hits: list[DrumHit] = []
+    measure = 0
+    while True:
+        start = measure * bar
+        if start >= duration_sec:
+            break
+
+        for step in range(8):
+            time = start + step * eighth
+            if time >= duration_sec:
+                break
+            hits.append(DrumHit(time, HIHAT_LABEL))
+
+        hits.append(DrumHit(start, KICK_LABEL))
+        if start + 2.0 < duration_sec:
+            hits.append(DrumHit(start + 2.0, KICK_LABEL))
+
+        hits.append(DrumHit(start + 1.0, SNARE_LABEL))
+        if start + 3.0 < duration_sec:
+            hits.append(DrumHit(start + 3.0, SNARE_LABEL))
+
+        measure += 1
+
+    return hits
 
 
 def create_fake_drum_chart(
@@ -13,39 +45,8 @@ def create_fake_drum_chart(
     beat_times: Sequence[float] | None = None,
     quantize_divisor: int | None = None,
 ) -> ChartDocument:
-    beats_per_measure = 4
-    eighth = 0.5
-    bar = beats_per_measure * 1.0
-
-    hits: list[DrumHit] = []
-    measure = 0
-    while True:
-        start = measure * bar
-        # Stop if this measure starts after the duration
-        if start >= duration_sec:
-            break
-
-        # Eighth-note hi-hat pulse
-        for step in range(8):
-            time = start + step * eighth
-            if time >= duration_sec:
-                break
-            hits.append(DrumHit(time, "hihat"))
-
-        # Kick on 1 and 3
-        hits.append(DrumHit(start, "kick"))
-        if start + 2.0 < duration_sec:
-            hits.append(DrumHit(start + 2.0, "kick"))
-
-        # Snare on 2 and 4
-        hits.append(DrumHit(start + 1.0, "snare"))
-        if start + 3.0 < duration_sec:
-            hits.append(DrumHit(start + 3.0, "snare"))
-
-        measure += 1
-
     return hits_to_chart_document(
-        hits,
+        make_fake_drum_hits(duration_sec),
         song=song,
         bpm=bpm,
         resolution=song.resolution,

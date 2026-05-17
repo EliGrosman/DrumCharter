@@ -5,28 +5,38 @@ from pathlib import Path
 from typing import Iterable
 
 from audiotochart.chart.convert import hits_to_chart_document
+from audiotochart.chart.drum_vocab import (
+    CRASH_LABEL,
+    HIHAT_LABEL,
+    KICK_LABEL,
+    RIDE_LABEL,
+    SNARE_LABEL,
+    TOM_BLUE_LABEL,
+    TOM_GREEN_LABEL,
+    TOM_YELLOW_LABEL,
+)
 from audiotochart.chart.format import ChartDocument, SongMetadata
 from audiotochart.drums import DrumHit
 
 
 MIDI_DRUM_MAP: dict[int, str] = {
-    35: "kick",
-    36: "kick",
-    38: "snare",
-    40: "snare",
-    42: "hihat",
-    44: "hihat",
-    46: "hihat",
-    48: "tom_yellow",
-    50: "tom_yellow",
-    45: "tom_blue",
-    47: "tom_blue",
-    51: "ride",
-    59: "ride",
-    49: "crash",
-    57: "crash",
-    41: "tom_green",
-    43: "tom_green",
+    35: KICK_LABEL,
+    36: KICK_LABEL,
+    38: SNARE_LABEL,
+    40: SNARE_LABEL,
+    42: HIHAT_LABEL,
+    44: HIHAT_LABEL,
+    46: HIHAT_LABEL,
+    48: TOM_YELLOW_LABEL,
+    50: TOM_YELLOW_LABEL,
+    45: TOM_BLUE_LABEL,
+    47: TOM_BLUE_LABEL,
+    51: RIDE_LABEL,
+    59: RIDE_LABEL,
+    49: CRASH_LABEL,
+    57: CRASH_LABEL,
+    41: TOM_GREEN_LABEL,
+    43: TOM_GREEN_LABEL,
 }
 
 CHART_MIDI_DRUM_TRACK_NAMES = {
@@ -35,17 +45,17 @@ CHART_MIDI_DRUM_TRACK_NAMES = {
 }
 
 CHART_MIDI_EXPERT_DRUM_MAP: dict[int, str] = {
-    96: "kick",
-    97: "snare",
-    98: "hihat",
-    99: "ride",
-    100: "crash",
+    96: KICK_LABEL,
+    97: SNARE_LABEL,
+    98: HIHAT_LABEL,
+    99: RIDE_LABEL,
+    100: CRASH_LABEL,
 }
 
 CHART_MIDI_TOM_MARKERS: dict[int, tuple[int, str]] = {
-    110: (98, "tom_yellow"),
-    111: (99, "tom_blue"),
-    112: (100, "tom_green"),
+    110: (98, TOM_YELLOW_LABEL),
+    111: (99, TOM_BLUE_LABEL),
+    112: (100, TOM_GREEN_LABEL),
 }
 
 

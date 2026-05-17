@@ -10,11 +10,11 @@ import pytest
 
 from audiotochart.drums import DrumHit
 from audiotochart.inference.checkpoint import (
-    MODEL_REGISTRY,
     ModelLoadError,
+    PRO8_ARCHITECTURE,
     load_model_bundle,
-    FULL5_LABELS,
     PRO8_LABELS,
+    _build_model_for_architecture,
 )
 from audiotochart.inference.model import (
     ModelTranscriber,
@@ -70,8 +70,7 @@ def _make_model_dir(
         config.update(extra_config)
     (model_dir / "config.json").write_text(json.dumps(config))
 
-    builder = MODEL_REGISTRY[architecture]
-    model = builder(config)
+    model = _build_model_for_architecture(architecture, config)
     torch.save(model.state_dict(), model_dir / "weights.pt")
 
     (model_dir / "labels.json").write_text(json.dumps(labels))
@@ -133,8 +132,7 @@ def test_loads_from_best_pt(tmp_path: Path) -> None:
     (d / "config.json").write_text(json.dumps({
         "architecture": "simple_cnn", "num_classes": 3, "n_mels": 10,
     }))
-    builder = MODEL_REGISTRY["simple_cnn"]
-    m = builder({"num_classes": 3, "n_mels": 10})
+    m = _build_model_for_architecture("simple_cnn", {"num_classes": 3, "n_mels": 10})
     torch.save({"model_state": m.state_dict()}, d / "best.pt")
     (d / "labels.json").write_text(json.dumps(["kick", "snare", "hihat"]))
     bundle = load_model_bundle(d)
@@ -149,26 +147,25 @@ def test_labels_from_variant(tmp_path: Path) -> None:
     (d / "config.json").write_text(json.dumps({
         "architecture": "simple_cnn", "variant": "pro8", "num_classes": 8, "n_mels": 84,
     }))
-    builder = MODEL_REGISTRY["simple_cnn"]
-    m = builder({"num_classes": 8, "n_mels": 84})
+    m = _build_model_for_architecture("simple_cnn", {"num_classes": 8, "n_mels": 84})
     torch.save(m.state_dict(), d / "weights.pt")
     bundle = load_model_bundle(d)
     assert bundle.labels == PRO8_LABELS
 
 
-def test_labels_from_variant_full5(tmp_path: Path) -> None:
-    """full5 variant derives FULL5_LABELS when labels.json is missing."""
-    import torch
-    d = tmp_path / "model"
-    d.mkdir()
-    (d / "config.json").write_text(json.dumps({
-        "architecture": "simple_cnn", "variant": "full5", "num_classes": 5, "n_mels": 84,
-    }))
-    builder = MODEL_REGISTRY["simple_cnn"]
-    m = builder({"num_classes": 5, "n_mels": 84})
-    torch.save(m.state_dict(), d / "weights.pt")
-    bundle = load_model_bundle(d)
-    assert bundle.labels == FULL5_LABELS
+def test_explicit_label_bundle_can_have_fewer_outputs(tmp_path: Path) -> None:
+    """Custom adapters can provide any supported label subset via labels.json."""
+    labels = ["kick", "snare", "hihat", "ride", "crash"]
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=len(labels),
+        labels=labels,
+        n_mels=84,
+    )
+
+    bundle = load_model_bundle(model_dir)
+
+    assert bundle.labels == labels
 
 
 def test_unknown_variant_errors(tmp_path: Path) -> None:
@@ -191,8 +188,6 @@ def test_loads_checkpoint_with_original_metadata_pattern(tmp_path: Path) -> None
     wrapper, thresholds.json, and no labels.json (variant-derived).
     """
     import torch
-    from audiotochart.inference.checkpoint import _VARIANT_TO_ARCH, _VARIANT_TO_LABELS
-
     num_classes = 8
     thresholds = [0.12, 0.28, 0.24, 0.16, 0.48, 0.22, 0.1, 0.1]
 
@@ -210,14 +205,12 @@ def test_loads_checkpoint_with_original_metadata_pattern(tmp_path: Path) -> None
         "tolerance_frames": 2,
     }))
 
-    arch_name = _VARIANT_TO_ARCH["pro8"]
-    builder = MODEL_REGISTRY[arch_name]
-    model = builder({"num_classes": num_classes})
+    model = _build_model_for_architecture(PRO8_ARCHITECTURE, {"num_classes": num_classes})
     torch.save({"model_state": model.state_dict()}, d / "best.pt")
 
     bundle = load_model_bundle(d)
 
-    assert bundle.labels == _VARIANT_TO_LABELS["pro8"]
+    assert bundle.labels == PRO8_LABELS
     assert bundle.config["thresholds"] == thresholds
     assert bundle.model is not None
     assert not bundle.model.training
