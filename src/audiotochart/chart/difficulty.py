@@ -1,4 +1,4 @@
-"""Generate lower drum difficulties from an Expert chart."""
+"""Generate lower pro-drum difficulties from an Expert pro-drum chart."""
 
 from __future__ import annotations
 
@@ -42,6 +42,23 @@ def _has_cymbal_at_tick(tick_notes: list[DrumNote], pad: int) -> bool:
     if modifier is None:
         return False
     return any(note.note == modifier for note in tick_notes)
+
+
+def _append_pad_with_cymbal(
+    out: list[DrumNote],
+    *,
+    tick: int,
+    pad: int,
+    tick_notes: list[DrumNote],
+) -> None:
+    out.append(DrumNote(tick=tick, note=pad))
+    modifier = {
+        YELLOW_PAD: CYMBAL_YELLOW,
+        BLUE_PAD: CYMBAL_BLUE,
+        GREEN_PAD: CYMBAL_GREEN,
+    }.get(pad)
+    if modifier is not None and any(note.note == modifier for note in tick_notes):
+        out.append(DrumNote(tick=tick, note=modifier))
 
 
 def _thin_notes(
@@ -92,7 +109,12 @@ def _generate_medium(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
         if SNARE in pads:
             kept.append(DrumNote(tick=tick, note=SNARE))
         if YELLOW_PAD in pads and _has_cymbal_at_tick(tick_notes, YELLOW_PAD):
-            kept.append(DrumNote(tick=tick, note=YELLOW_PAD))
+            _append_pad_with_cymbal(
+                kept,
+                tick=tick,
+                pad=YELLOW_PAD,
+                tick_notes=tick_notes,
+            )
 
     return _thin_notes(kept, min_gap=eighth, priority={KICK, SNARE})
 
@@ -103,9 +125,11 @@ def _generate_easy(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
     kept: list[DrumNote] = []
     last_kick = -quarter
     last_snare = -quarter
+    last_hihat = -quarter
 
     for tick in sorted(groups):
-        pads = _tick_pad_notes(groups[tick])
+        tick_notes = groups[tick]
+        pads = _tick_pad_notes(tick_notes)
         beat_in_bar = round(tick / quarter) % 4
 
         if KICK in pads and beat_in_bar in (0, 2) and tick - last_kick >= quarter:
@@ -121,11 +145,24 @@ def _generate_easy(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
             kept.append(DrumNote(tick=tick, note=SNARE))
             last_snare = tick
 
+        if (
+            YELLOW_PAD in pads
+            and _has_cymbal_at_tick(tick_notes, YELLOW_PAD)
+            and tick - last_hihat >= quarter
+        ):
+            _append_pad_with_cymbal(
+                kept,
+                tick=tick,
+                pad=YELLOW_PAD,
+                tick_notes=tick_notes,
+            )
+            last_hihat = tick
+
     return kept
 
 
 def generate_difficulties(doc: ChartDocument) -> None:
-    """Populate Hard, Medium, and Easy drums from Expert in place."""
+    """Populate Hard, Medium, and Easy pro drums from Expert in place."""
     expert = doc.drums.get(DrumDifficulty.EXPERT, [])
     if not expert:
         return

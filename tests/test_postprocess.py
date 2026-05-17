@@ -91,8 +91,9 @@ def test_off_grid_hits_snap_when_close() -> None:
 def test_off_grid_hits_stay_unsnapped_when_far() -> None:
     bpm = 120.0
     sec_per_beat = 60.0 / bpm
-    # Place a hit exactly halfway between beats (well beyond 50 ms from any subdivision)
-    hit_time = sec_per_beat / 2  # 250 ms from nearest beat
+    # Place a hit more than 50 ms from the nearest 16th-note grid point.
+    # At 120 BPM, 16ths are spaced 125 ms apart, so 190 ms is 60 ms from 250 ms.
+    hit_time = 0.19
     hits = [DrumHit(hit_time, "kick")]
     grid = BeatGrid(beat_times=[0.0, sec_per_beat, sec_per_beat * 2], bpm=bpm)
     result = snap_hits_to_grid(hits, grid, divisor=16)
