@@ -32,10 +32,12 @@ def download_audio_search(query: str, out_dir: Path, filename_stem: str = "yt_au
         "--audio-format",
         "wav",
         "--no-playlist",
+        "--quiet",
+        "--no-warnings",
         "-o",
         f"{template}.%(ext)s",
     ]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     wav = Path(template + ".wav")
     if wav.is_file():
         return wav

@@ -18,10 +18,12 @@ from audiotochart.tempo import TempoError, detect_beat_grid
 logger = logging.getLogger(__name__)
 
 # Stage IDS used by callback
+STAGE_SEPARATE = "separate"
 STAGE_CHART = "chart"
 STAGE_OUTPUT = "output"
 
 STAGES = [
+    (STAGE_SEPARATE, "Isolating Drums"),
     (STAGE_CHART, "Generating Drum Chart"),
     (STAGE_OUTPUT, "Writing Clone Hero Song Folder"),
 ]
@@ -97,11 +99,13 @@ def generate_drum_chart_folder(
     if separate_drums:
         from audiotochart.separation import isolate_drums
 
+        _notify(STAGE_SEPARATE, "start")
         _tmp_dir = Path(tempfile.mkdtemp(prefix="audiotochart-sep-"))
         drum_wav = _tmp_dir / "drums.wav"
         logger.info("Isolating drums via Demucs...")
-        isolate_drums(source_audio, drum_wav, device=device)
+        isolate_drums(source_audio, drum_wav, device=device, progress=False)
         transcribe_audio = drum_wav
+        _notify(STAGE_SEPARATE, "done")
         logger.info("Drum stem ready at %s", drum_wav)
 
     meta = SongMetadata(

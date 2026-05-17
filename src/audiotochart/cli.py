@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING
 import click
 import tempfile
 from rich.console import Console
+from rich.status import Status
 
-from audiotochart.pipeline import generate_drum_chart_folder
+from audiotochart.pipeline import STAGES, generate_drum_chart_folder
 from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
 
@@ -67,6 +68,22 @@ def _run_generate(
 ) -> Path:
     transcriber_cls = _resolve_backend(backend)
     transcriber = transcriber_cls()
+
+    stage_labels = dict(STAGES)
+    status: Status | None = None
+
+    def _on_progress(stage: str, event: str) -> None:
+        nonlocal status
+        label = stage_labels.get(stage, stage)
+        if event == "start":
+            if status is None:
+                status = console.status(f"[bold green] {label}...")
+                status.__enter__()
+            else:
+                status.update(f"[bold green] {label}...")
+        elif event == "done":
+            console.print(f"[bold green]  {label}: done")
+
     try:
         return generate_drum_chart_folder(
             source_audio=source_audio,
@@ -80,10 +97,14 @@ def _run_generate(
             separate_drums=separate_drums,
             device=device,
             keep_workdir=keep_workdir,
+            on_progress=_on_progress,
         )
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")
         raise SystemExit(1) from e
+    finally:
+        if status is not None:
+            status.__exit__(None, None, None)
 
 @click.group()
 def cli() -> None:
