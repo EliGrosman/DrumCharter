@@ -650,7 +650,8 @@ def test_tom_consistency_skips_custom_8_class_models(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cli_backend_model_missing_model_dir(tmp_path: Path) -> None:
+def test_cli_backend_model_uses_default_model_dir(tmp_path: Path) -> None:
+    """When --model-dir is omitted, the default bundled path is used."""
     from click.testing import CliRunner
     from audiotochart.cli import cli
 
@@ -659,9 +660,11 @@ def test_cli_backend_model_missing_model_dir(tmp_path: Path) -> None:
     result = runner.invoke(cli, [
         "generate", str(audio), "--backend", "model", "-o", str(tmp_path / "out"),
         "--song", "Test", "--artist", "Tester", "--bpm", "120",
+        "--no-separate-drums",
     ])
-    assert result.exit_code != 0
-    assert "--model-dir" in result.output
+    # Should not error about missing --model-dir; either it loads the bundled
+    # model or fails with a model-load error (e.g. missing torch).
+    assert result.exit_code == 0 or "Model directory not found" in result.output
 
 
 def test_cli_backend_model_load_error_is_clean(tmp_path: Path) -> None:
