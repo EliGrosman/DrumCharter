@@ -108,7 +108,6 @@ dependencies = [
 ai = [
     { name = "adtof-pytorch" },
     { name = "demucs" },
-    { name = "pretty-midi" },
     { name = "torch" },
 ]
 audio = [
@@ -133,7 +132,6 @@ requires-dist = [
     { name = "click", specifier = ">=8.3.3" },
     { name = "demucs", marker = "extra == 'ai'", specifier = ">=4.0.0" },
     { name = "librosa", marker = "extra == 'audio'", specifier = ">=0.10" },
-    { name = "pretty-midi", marker = "extra == 'ai'", specifier = ">=0.2.10" },
     { name = "pretty-midi", marker = "extra == 'midi'", specifier = ">=0.2.10" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "soundfile", marker = "extra == 'audio'", specifier = ">=0.12" },

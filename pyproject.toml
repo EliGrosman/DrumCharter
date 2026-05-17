@@ -24,7 +24,6 @@ midi = [
 ai = [
     "adtof-pytorch @ git+https://github.com/xavriley/ADTOF-pytorch.git",
     "demucs>=4.0.0",
-    "pretty_midi>=0.2.10",
     "torch",
 ]
 

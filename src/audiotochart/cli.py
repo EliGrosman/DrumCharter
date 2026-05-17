@@ -15,6 +15,7 @@ from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
 from audiotochart.postprocess import QUANTIZE_CHOICES
 from audiotochart.device import VALID_TORCH_DEVICES
+from audiotochart.separation import SeparationError
 
 if TYPE_CHECKING:
     from audiotochart.inference.base import DrumTranscriber
@@ -75,7 +76,7 @@ def _run_generate(
     bpm: float | None,
     from_midi: Path | None,
     backend: str = "fake",
-    separate_drums: bool = False,
+    separate_drums: bool | None = None,
     device: str | None = "auto",
     keep_workdir: bool = False,
     model_dir: Path | None = None,
@@ -83,6 +84,10 @@ def _run_generate(
     tom_consistency: bool = False,
 ) -> Path:
     transcriber_cls = _resolve_backend(backend)
+
+    if separate_drums is None:
+        separate_drums = (backend == "model")
+
     if backend == "model":
         if model_dir is None:
             console.print("[red]Model backend requires --model-dir[/red]")
@@ -122,6 +127,14 @@ def _run_generate(
             quantize_divisor=quantize_divisor,
             on_progress=_on_progress,
         )
+    except SeparationError as e:
+        console.print(f"[red]{e}[/red]")
+        console.print(
+            "[yellow]Drum separation requires Demucs + torch. "
+            "Install: [bold]uv sync --extra ai[/bold]. "
+            "Skip separation: [bold]--no-separate-drums[/bold][/yellow]"
+        )
+        raise SystemExit(1) from e
     except (RuntimeError, ImportError) as e:
         console.print(f"[red]{e}[/red]")
         raise SystemExit(1) from e
@@ -141,7 +154,11 @@ def cli() -> None:
 @click.option("--bpm", type=float, default=None, help="BPM for chart timing (auto-detected if not provided)")
 @click.option("--from-midi", type=click.Path(path_type=Path, exists=False), default=None, help="Developer path: build drum notes from a MIDI drum file")
 @click.option("--backend", type=click.Choice(list(BACKENDS)), default="fake", help="Inference backend to use")
-@click.option("--separate-drums/--no-separate-drums", default=False, help="Isolate drums with Demucs before transcription")
+@click.option(
+    "--separate-drums/--no-separate-drums",
+    default=None,
+    help="Isolate drums with Demucs before transcription (default: on for model backend, off otherwise)",
+)
 @click.option(
     "--device",
     type=click.Choice(VALID_TORCH_DEVICES),

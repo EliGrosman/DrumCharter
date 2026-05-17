@@ -59,7 +59,8 @@ def isolate_drums(
         from demucs.separate import load_track
     except ImportError as exc:
         raise SeparationError(
-            "Demucs separation requires: uv sync --extra ai"
+            "Demucs (drum separation) not found. "
+            "Install with: uv sync --extra ai"
         ) from exc
 
     device = resolve_torch_device(device, purpose="Demucs separation")

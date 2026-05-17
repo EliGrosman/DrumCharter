@@ -676,6 +676,7 @@ def test_cli_backend_model_load_error_is_clean(tmp_path: Path) -> None:
     result = runner.invoke(cli, [
         "generate", str(audio), "--backend", "model",
         "--model-dir", str(model_dir),
+        "--no-separate-drums",
         "-o", str(tmp_path / "out"),
         "--song", "Test", "--artist", "Tester", "--bpm", "120",
     ])
@@ -712,6 +713,7 @@ def test_cli_explicit_cuda_unavailable_is_clean(monkeypatch, tmp_path: Path) -> 
         "--backend", "model",
         "--model-dir", str(model_dir),
         "--device", "cuda",
+        "--no-separate-drums",
         "--song", "Test",
         "--artist", "Tester",
         "--bpm", "120",
@@ -738,3 +740,62 @@ def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
     assert "cuda" in result.output
     assert "--tom-consistency" in result.output
     assert "--no-tom-consistency" in result.output
+    assert "separate-drums" in result.output
+    assert "--no-separate-drums" in result.output
+
+
+def test_cli_model_backend_defaults_to_separation(monkeypatch, tmp_path: Path) -> None:
+    """Model backend should default to separate_drums=True."""
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from audiotochart.cli import cli
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = _make_model_dir(tmp_path)
+
+    seen_separate = None
+
+    def _fake_generate(*, separate_drums, **kwargs):
+        nonlocal seen_separate
+        seen_separate = separate_drums
+        raise SystemExit(0)
+
+    runner = CliRunner()
+    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+        runner.invoke(cli, [
+            "generate", str(audio),
+            "--backend", "model",
+            "--model-dir", str(model_dir),
+            "--song", "Test", "--artist", "Tester",
+            "--bpm", "120", "-o", str(tmp_path / "out"),
+        ])
+
+    assert seen_separate is True
+
+
+def test_cli_fake_backend_defaults_to_no_separation(tmp_path: Path) -> None:
+    """Fake backend should default to separate_drums=False"""
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from audiotochart.cli import cli
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+
+    seen_separate = None
+
+    def _fake_generate(*, separate_drums, **kwargs):
+        nonlocal seen_separate
+        seen_separate = separate_drums
+        raise SystemExit(0)
+
+    runner = CliRunner()
+    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+        runner.invoke(cli, [
+            "generate", str(audio),
+            "--backend", "fake",
+            "--song", "Test", "--artist", "Tester",
+            "--bpm", "120", "-o", str(tmp_path / "out"),
+        ])
+
+    assert seen_separate is False
+
