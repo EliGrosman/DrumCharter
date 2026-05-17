@@ -82,18 +82,22 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
-    { name = "librosa" },
     { name = "rich" },
     { name = "yt-dlp" },
 ]
 
 [package.optional-dependencies]
+audio = [
+    { name = "librosa" },
+    { name = "soundfile" },
+]
 midi = [
     { name = "pretty-midi" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "audiotochart", extra = ["audio", "midi"] },
     { name = "chparse" },
     { name = "pretty-midi" },
     { name = "pytest" },
@@ -102,15 +106,18 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.3.3" },
-    { name = "librosa", specifier = ">=0.11.0" },
+    { name = "librosa", marker = "extra == 'audio'", specifier = ">=0.10" },
     { name = "pretty-midi", marker = "extra == 'midi'", specifier = ">=0.2.10" },
     { name = "rich", specifier = ">=15.0.0" },
+    { name = "soundfile", marker = "extra == 'audio'", specifier = ">=0.12" },
     { name = "yt-dlp", specifier = ">=2026.3.17" },
 ]
-provides-extras = ["midi"]
+provides-extras = ["audio", "midi"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "audiotochart", extras = ["audio"] },
+    { name = "audiotochart", extras = ["midi"] },
     { name = "chparse", specifier = ">=0.0.3" },
     { name = "pretty-midi", specifier = ">=0.2.10" },
     { name = "pytest", specifier = ">=9.0.2" },

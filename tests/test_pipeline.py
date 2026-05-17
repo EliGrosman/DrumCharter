@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 import wave
 from pathlib import Path
+from unittest.mock import patch
 
 import audiotochart.pipeline as pipeline
 
@@ -59,3 +60,21 @@ def test_generate_drum_chart_folder_writes_clone_hero_song_folder(tmp_path: Path
     max_tick = max(ticks) if ticks else 0
     assert max_tick >= 1200  # at least ~2.9 seconds worth of ticks
     assert max_tick <= 2000  # not way past the duration
+
+
+def test_manual_bpm_bypasses_tempo_detection(tmp_path: Path) -> None:
+    """When bpm is provided, detect_beat_grid should not be called."""
+    source_audio = _make_wav(tmp_path, "song.wav", duration_sec=2.0)
+
+    with patch("audiotochart.pipeline.detect_beat_grid") as mock_detect:
+        folder = pipeline.generate_drum_chart_folder(
+            source_audio=source_audio,
+            output_parent=tmp_path / "out",
+            song_name="Test",
+            artist_name="Test",
+            bpm=140.0,
+        )
+        mock_detect.assert_not_called()
+
+    chart = (folder / "notes.chart").read_text(encoding="utf-8")
+    assert "0 = B 140000" in chart

@@ -9,6 +9,7 @@ from rich.console import Console
 
 from audiotochart.pipeline import generate_drum_chart_folder
 from audiotochart.download import download_audio_search
+from audiotochart.tempo import detect_beat_grid, TempoError
 
 console = Console()
 
@@ -19,7 +20,7 @@ def _run_generate(
     artist_name: str,
     dest_parent: Path,
     charter: str,
-    bpm: float,
+    bpm: float | None,
     from_midi: Path | None,
 ) -> Path:
 
@@ -46,14 +47,14 @@ def cli() -> None:
 @click.option("--song", default=None, help="Song title for chart metadata")
 @click.option("--artist", default=None, help="Artist name for chart metadata")
 @click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Parent folder for the new song directory")
-@click.option("--bpm", type=float, default=120.0, show_default=True, help="BPM used for chart timing")
+@click.option("--bpm", type=float, default=None, help="BPM for chart timing (auto-detected if not provided)")
 @click.option("--from-midi", type=click.Path(path_type=Path, exists=False), default=None, help="Developer path: build drum notes from a MIDI drum file")
 def generate_cmd(
     audio: Path | None,
     song: str | None,
     artist: str | None,
     output: Path | None,
-    bpm: float,
+    bpm: float | None,
     from_midi: Path | None,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
@@ -81,6 +82,17 @@ def generate_cmd(
             with console.status(f'[bold green] Download audio: "{query}"...'):
                 wav_path = download_audio_search(query, tmp_path)
             audio = wav_path
+            
+            if bpm is None:
+                with console.status("[bold green] Detecting tempo...[/bold green]"):
+                    try:
+                        beat_grid = detect_beat_grid(wav_path)
+                        bpm = beat_grid.bpm
+                        console.print(f"[green]Detected tempo: {bpm:.1f} BPM[/green]")
+                    except TempoError as e:
+                        console.print(f"[yellow]Tempo detection failed: {e}. Using default 120 BPM.[/yellow]")
+                        bpm = 120.0
+            
             song_name = song
             artist_name = artist
             folder = _run_generate(
@@ -98,6 +110,17 @@ def generate_cmd(
         assert audio is not None
         song_name = song or audio.stem
         artist_name = artist or "Unknown"
+        
+        if bpm is None:
+            with console.status("[bold green] Detecting tempo...[/bold green]"):
+                try:
+                    beat_grid = detect_beat_grid(audio)
+                    bpm = beat_grid.bpm
+                    console.print(f"[green]Detected tempo: {bpm:.1f} BPM[/green]")
+                except TempoError as e:
+                    console.print(f"[yellow]Tempo detection failed: {e}. Using default 120 BPM.[/yellow]")
+                    bpm = 120.0
+        
         folder = _run_generate(
             source_audio=audio,
             song_name=song_name,

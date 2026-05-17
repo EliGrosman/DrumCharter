@@ -10,6 +10,7 @@ from audiotochart.chart.format import DrumDifficulty, SongMetadata, write_chart_
 from audiotochart.chart.fake import create_fake_drum_chart
 from audiotochart.chart.midi import midi_to_chart_document
 from audiotochart.chart.songini import SongIni, write_song_ini
+from audiotochart.tempo import TempoError, detect_beat_grid
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def generate_drum_chart_folder(
     song_name: str,
     artist_name: str,
     charter: str = "AudioToChart (AI)",
-    bpm: float = 120.0,
+    bpm: float | None = None,
     resolution: int = 192,
     from_midi: Path | None = None,
     on_progress: ProgressCallback | None = None
@@ -66,6 +67,16 @@ def generate_drum_chart_folder(
 
     duration_sec = get_audio_duration_sec(source_audio)
     logger.info("Audio duration: %.2f s", duration_sec)
+
+    # Auto-detect BPM if not provided
+    if bpm is None:
+        try:
+            beat_grid = detect_beat_grid(source_audio)
+            bpm = beat_grid.bpm
+            logger.info("Detected tempo: %.2f BPM (%d beats)", bpm, len(beat_grid.beat_times))
+        except TempoError as e:
+            logger.warning("Tempo detection failed: %s. Using default 120 BPM.", e)
+            bpm = 120.0
 
     stream_name = _stream_filename(source_audio)
     meta = SongMetadata(
