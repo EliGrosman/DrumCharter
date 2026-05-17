@@ -151,6 +151,51 @@ class TestPipelineIntegration:
                 )
                 mock_rmtree.assert_called_once()
 
+    def test_temp_workdir_cleaned_when_separation_fails(self, tmp_path: Path):
+        import audiotochart.pipeline as pipeline
+
+        audio = _make_wav(tmp_path, "song.wav")
+        transcriber = MagicMock()
+        transcriber.transcribe.return_value = []
+
+        with patch("audiotochart.separation.isolate_drums", side_effect=RuntimeError("boom")):
+            with patch("audiotochart.pipeline.shutil.rmtree") as mock_rmtree:
+                with pytest.raises(RuntimeError, match="boom"):
+                    pipeline.generate_drum_chart_folder(
+                        source_audio=audio,
+                        output_parent=tmp_path / "out-fail",
+                        song_name="Test",
+                        artist_name="Test",
+                        bpm=120.0,
+                        transcriber=transcriber,
+                        separate_drums=True,
+                        keep_workdir=False,
+                    )
+                mock_rmtree.assert_called_once()
+
+    def test_temp_workdir_cleaned_when_transcriber_fails(self, tmp_path: Path):
+        import audiotochart.pipeline as pipeline
+
+        audio = _make_wav(tmp_path, "song.wav")
+        transcriber = MagicMock()
+        transcriber.transcribe.side_effect = RuntimeError("transcribe failed")
+
+        with patch("audiotochart.separation.isolate_drums") as mock_iso:
+            mock_iso.return_value = tmp_path / "drums.wav"
+            with patch("audiotochart.pipeline.shutil.rmtree") as mock_rmtree:
+                with pytest.raises(RuntimeError, match="transcribe failed"):
+                    pipeline.generate_drum_chart_folder(
+                        source_audio=audio,
+                        output_parent=tmp_path / "out-transcribe-fail",
+                        song_name="Test",
+                        artist_name="Test",
+                        bpm=120.0,
+                        transcriber=transcriber,
+                        separate_drums=True,
+                        keep_workdir=False,
+                    )
+                mock_rmtree.assert_called_once()
+
     def test_keep_workdir_preserves_temp_dir(self, tmp_path: Path):
         import audiotochart.pipeline as pipeline
 

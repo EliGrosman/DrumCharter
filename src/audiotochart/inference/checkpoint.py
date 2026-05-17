@@ -9,7 +9,7 @@ from typing import Callable
 log = logging.getLogger(__name__)
 
 
-class ModelLoadError(Exception):
+class ModelLoadError(RuntimeError):
     """Raised when a model bundle cannot be loaded."""
 
 

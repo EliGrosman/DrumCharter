@@ -6,7 +6,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 
-class SeparationError(Exception):
+class SeparationError(RuntimeError):
     """Raised when Demucs drum separation fails."""
 
 
@@ -50,13 +50,16 @@ def isolate_drums(
     if not audio_path.is_file():
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-    import torch as th
-
-    import soundfile as sf
-
-    from demucs.apply import apply_model
-    from demucs.pretrained import get_model
-    from demucs.separate import load_track
+    try:
+        import torch as th
+        import soundfile as sf
+        from demucs.apply import apply_model
+        from demucs.pretrained import get_model
+        from demucs.separate import load_track
+    except ImportError as exc:
+        raise SeparationError(
+            "Demucs separation requires: uv sync --extra ai"
+        ) from exc
 
     if device is None:
         device = "cuda" if th.cuda.is_available() else "cpu"

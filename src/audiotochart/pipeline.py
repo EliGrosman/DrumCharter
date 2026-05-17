@@ -96,79 +96,80 @@ def generate_drum_chart_folder(
     # Optional drum source separation
     transcribe_audio = source_audio
     _tmp_dir: Path | None = None
-    if separate_drums:
-        from audiotochart.separation import isolate_drums
+    try:
+        if separate_drums:
+            from audiotochart.separation import isolate_drums
 
-        _notify(STAGE_SEPARATE, "start")
-        _tmp_dir = Path(tempfile.mkdtemp(prefix="audiotochart-sep-"))
-        drum_wav = _tmp_dir / "drums.wav"
-        logger.info("Isolating drums via Demucs...")
-        isolate_drums(source_audio, drum_wav, device=device, progress=False)
-        transcribe_audio = drum_wav
-        _notify(STAGE_SEPARATE, "done")
-        logger.info("Drum stem ready at %s", drum_wav)
+            _notify(STAGE_SEPARATE, "start")
+            _tmp_dir = Path(tempfile.mkdtemp(prefix="audiotochart-sep-"))
+            drum_wav = _tmp_dir / "drums.wav"
+            logger.info("Isolating drums via Demucs...")
+            isolate_drums(source_audio, drum_wav, device=device, progress=False)
+            transcribe_audio = drum_wav
+            _notify(STAGE_SEPARATE, "done")
+            logger.info("Drum stem ready at %s", drum_wav)
 
-    meta = SongMetadata(
-        name=song_name,
-        artist=artist_name,
-        charter=charter,
-        resolution=resolution,
-        offset=0.0,
-        music_stream=stream_name,
-    )
-    if from_midi is None:
-        if transcriber is None:
-            from audiotochart.inference.fake import FakeTranscriber
-            transcriber = FakeTranscriber()
-        hits = transcriber.transcribe(transcribe_audio)
-        logger.info("Transcriber returned %d drum hits", len(hits))
-        doc = hits_to_chart_document(
-            hits,
-            song=meta,
-            bpm=bpm,
-            resolution=resolution,
-            beat_times=beat_times,
-            quantize_divisor=quantize_divisor,
-        )
-    else:
-        logger.info("Using MIDI drum transcription: %s", from_midi)
-        doc = midi_to_chart_document(
-            from_midi,
-            song=meta,
-            bpm=bpm,
-            resolution=resolution,
-            beat_times=beat_times,
-            quantize_divisor=quantize_divisor,
-        )
-    expert_notes = doc.drums.get(DrumDifficulty.EXPERT, [])
-    if not expert_notes:
-        logger.warning("No drum notes were generated; the chart will be empty.")
-    generate_difficulties(doc)
-    _notify(STAGE_CHART, "done")
-
-    logger.info("Writing Clone Hero song folder")
-    _notify(STAGE_OUTPUT, "start")
-    folder = output_parent / _safe_folder_name(f"{artist_name} - {song_name}")
-    folder.mkdir(parents=True, exist_ok=True)
-
-    write_chart_file(doc, folder / "notes.chart")
-    write_song_ini(
-        SongIni(
+        meta = SongMetadata(
             name=song_name,
             artist=artist_name,
             charter=charter,
-            diff_drums=4,
-            song_length=int(duration_sec * 1000),
-        ),
-        folder / "song.ini",
-    )
-    shutil.copy2(source_audio, folder / stream_name)
-    _notify(STAGE_OUTPUT, "done")
+            resolution=resolution,
+            offset=0.0,
+            music_stream=stream_name,
+        )
+        if from_midi is None:
+            if transcriber is None:
+                from audiotochart.inference.fake import FakeTranscriber
+                transcriber = FakeTranscriber()
+            hits = transcriber.transcribe(transcribe_audio)
+            logger.info("Transcriber returned %d drum hits", len(hits))
+            doc = hits_to_chart_document(
+                hits,
+                song=meta,
+                bpm=bpm,
+                resolution=resolution,
+                beat_times=beat_times,
+                quantize_divisor=quantize_divisor,
+            )
+        else:
+            logger.info("Using MIDI drum transcription: %s", from_midi)
+            doc = midi_to_chart_document(
+                from_midi,
+                song=meta,
+                bpm=bpm,
+                resolution=resolution,
+                beat_times=beat_times,
+                quantize_divisor=quantize_divisor,
+            )
+        expert_notes = doc.drums.get(DrumDifficulty.EXPERT, [])
+        if not expert_notes:
+            logger.warning("No drum notes were generated; the chart will be empty.")
+        generate_difficulties(doc)
+        _notify(STAGE_CHART, "done")
 
-    # Clean up separation workdir unless --keep-workdir
-    if _tmp_dir is not None and not keep_workdir:
-        shutil.rmtree(_tmp_dir, ignore_errors=True)
-        logger.info("Cleaned up separation workdir %s", _tmp_dir)
+        logger.info("Writing Clone Hero song folder")
+        _notify(STAGE_OUTPUT, "start")
+        folder = output_parent / _safe_folder_name(f"{artist_name} - {song_name}")
+        folder.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Chart folder generated at %s", folder)
-    return folder
+        write_chart_file(doc, folder / "notes.chart")
+        write_song_ini(
+            SongIni(
+                name=song_name,
+                artist=artist_name,
+                charter=charter,
+                diff_drums=4,
+                song_length=int(duration_sec * 1000),
+            ),
+            folder / "song.ini",
+        )
+        shutil.copy2(source_audio, folder / stream_name)
+        _notify(STAGE_OUTPUT, "done")
+
+        logger.info("Chart folder generated at %s", folder)
+        return folder
+    finally:
+        # Clean up separation workdir unless --keep-workdir, even on failure.
+        if _tmp_dir is not None and not keep_workdir:
+            shutil.rmtree(_tmp_dir, ignore_errors=True)
+            logger.info("Cleaned up separation workdir %s", _tmp_dir)

@@ -78,13 +78,13 @@ def _run_generate(
     keep_workdir: bool = False,
     model_dir: Path | None = None,
 ) -> Path:
+    transcriber_cls = _resolve_backend(backend)
     if backend == "model":
         if model_dir is None:
             console.print("[red]Model backend requires --model-dir[/red]")
             raise SystemExit(1)
-        transcriber = ModelTranscriber(model_dir=model_dir, device=device)
+        transcriber = transcriber_cls(model_dir=model_dir, device=device)
     else:
-        transcriber_cls = _resolve_backend(backend)
         transcriber = transcriber_cls()
 
     stage_labels = dict(STAGES)
@@ -117,7 +117,7 @@ def _run_generate(
             keep_workdir=keep_workdir,
             on_progress=_on_progress,
         )
-    except RuntimeError as e:
+    except (RuntimeError, ImportError) as e:
         console.print(f"[red]{e}[/red]")
         raise SystemExit(1) from e
     finally:

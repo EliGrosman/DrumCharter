@@ -15,7 +15,11 @@ from audiotochart.inference.checkpoint import (
     load_model_bundle,
     PRO8_LABELS,
 )
-from audiotochart.inference.model import ModelTranscriber, ModelTranscriberError
+from audiotochart.inference.model import (
+    ModelTranscriber,
+    ModelTranscriberError,
+    _pick_peaks_simple,
+)
 
 
 def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:
@@ -248,6 +252,23 @@ def test_transcriber_empty_output_when_no_peaks(tmp_path: Path) -> None:
     assert hits == []
 
 
+def test_peak_picker_keeps_local_max_after_threshold_crossing() -> None:
+    acts = np.array([[0.1], [0.6], [0.9], [0.2]], dtype=np.float32)
+
+    hits = _pick_peaks_simple(
+        acts,
+        thresholds=[0.5],
+        min_distance=2,
+        fps=10.0,
+        num_classes=1,
+    )
+
+    assert len(hits) == 1
+    assert hits[0][0] == pytest.approx(0.2)
+    assert hits[0][1] == 0
+    assert hits[0][2] == pytest.approx(0.9)
+
+
 # ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
@@ -265,6 +286,27 @@ def test_cli_backend_model_missing_model_dir(tmp_path: Path) -> None:
     ])
     assert result.exit_code != 0
     assert "--model-dir" in result.output
+
+
+def test_cli_backend_model_load_error_is_clean(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from audiotochart.cli import cli
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=2.0)
+    model_dir = tmp_path / "broken-model"
+    model_dir.mkdir()
+    runner = CliRunner()
+
+    result = runner.invoke(cli, [
+        "generate", str(audio), "--backend", "model",
+        "--model-dir", str(model_dir),
+        "-o", str(tmp_path / "out"),
+        "--song", "Test", "--artist", "Tester", "--bpm", "120",
+    ])
+
+    assert result.exit_code != 0
+    assert "Missing config.json" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:

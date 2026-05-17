@@ -203,8 +203,14 @@ def _pick_peaks_simple(
                 continue
             right = min(n, i + min_distance + 1)
             local_max_idx = int(i + np.argmax(probs[i:right]))
-            if mask[local_max_idx] and local_max_idx == i:
-                onsets.append((float(i) / fps, c, float(probs[i])))
+            if mask[local_max_idx]:
+                onsets.append(
+                    (
+                        float(local_max_idx) / fps,
+                        c,
+                        float(probs[local_max_idx]),
+                    )
+                )
             i = local_max_idx + min_distance
     onsets.sort(key=lambda x: x[0])
     return onsets
