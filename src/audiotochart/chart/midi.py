@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Iterable
 
@@ -147,6 +148,8 @@ def midi_to_chart_document(
     song: SongMetadata,
     bpm: float,
     resolution: int = 192,
+    beat_times: Sequence[float] | None = None,
+    quantize_divisor: int | None = None,
 ) -> ChartDocument:
     """Convert a General MIDI drum file into a Clone Hero chart document."""
     return hits_to_chart_document(
@@ -154,4 +157,6 @@ def midi_to_chart_document(
         song=song,
         bpm=bpm,
         resolution=resolution,
+        beat_times=beat_times,
+        quantize_divisor=quantize_divisor,
     )

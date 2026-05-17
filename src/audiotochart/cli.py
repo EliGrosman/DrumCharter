@@ -9,7 +9,6 @@ from rich.console import Console
 
 from audiotochart.pipeline import generate_drum_chart_folder
 from audiotochart.download import download_audio_search
-from audiotochart.tempo import detect_beat_grid, TempoError
 
 console = Console()
 
@@ -83,16 +82,6 @@ def generate_cmd(
                 wav_path = download_audio_search(query, tmp_path)
             audio = wav_path
             
-            if bpm is None:
-                with console.status("[bold green] Detecting tempo...[/bold green]"):
-                    try:
-                        beat_grid = detect_beat_grid(wav_path)
-                        bpm = beat_grid.bpm
-                        console.print(f"[green]Detected tempo: {bpm:.1f} BPM[/green]")
-                    except TempoError as e:
-                        console.print(f"[yellow]Tempo detection failed: {e}. Using default 120 BPM.[/yellow]")
-                        bpm = 120.0
-            
             song_name = song
             artist_name = artist
             folder = _run_generate(
@@ -110,16 +99,6 @@ def generate_cmd(
         assert audio is not None
         song_name = song or audio.stem
         artist_name = artist or "Unknown"
-        
-        if bpm is None:
-            with console.status("[bold green] Detecting tempo...[/bold green]"):
-                try:
-                    beat_grid = detect_beat_grid(audio)
-                    bpm = beat_grid.bpm
-                    console.print(f"[green]Detected tempo: {bpm:.1f} BPM[/green]")
-                except TempoError as e:
-                    console.print(f"[yellow]Tempo detection failed: {e}. Using default 120 BPM.[/yellow]")
-                    bpm = 120.0
         
         folder = _run_generate(
             source_audio=audio,

@@ -7,8 +7,12 @@ import pytest
 from audiotochart.chart import DrumDifficulty, SectionEvent
 from audiotochart.chart.convert import (
     INSTRUMENT_MAP,
+    build_beat_tempo_map,
+    build_sync_track_from_beats,
     hits_to_chart_document,
     seconds_to_tick,
+    seconds_to_tick_tempo_map,
+    tick_to_seconds_tempo_map,
 )
 from audiotochart.chart.fake import create_fake_drum_chart
 from audiotochart.chart.format import SongMetadata
@@ -30,6 +34,22 @@ def test_seconds_to_tick_zero() -> None:
 
 def test_seconds_to_tick_negative() -> None:
     assert seconds_to_tick(-1.0, bpm=120, resolution=192) == 0
+
+
+def test_seconds_to_tick_tempo_map_handles_tempo_change() -> None:
+    tempo_map = build_beat_tempo_map([0.5, 1.0, 1.4], resolution=192)
+    assert tempo_map is not None
+    assert seconds_to_tick_tempo_map(0.0, tempo_map) == 0
+    assert seconds_to_tick_tempo_map(0.5, tempo_map) == 192
+    assert seconds_to_tick_tempo_map(1.0, tempo_map) == 384
+    assert seconds_to_tick_tempo_map(1.2, tempo_map) == 480
+    assert tick_to_seconds_tempo_map(480, tempo_map) == pytest.approx(1.2)
+
+
+def test_build_sync_track_from_beats_emits_tempo_changes() -> None:
+    sync = build_sync_track_from_beats([0.5, 1.0, 1.4], resolution=192)
+    assert [event.payload for event in sync[:2]] == ["TS 4", "B 120000"]
+    assert any(event.tick == 384 and event.payload == "B 150000" for event in sync)
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +121,44 @@ def test_multiple_instruments_produce_correct_notes() -> None:
     assert (0, 1) in notes   # snare
     assert (0, 2) in notes   # hihat pad
     assert (0, 66) in notes  # hihat cymbal
+
+
+def test_hits_to_chart_document_uses_variable_beat_map_without_quantizing() -> None:
+    doc = hits_to_chart_document(
+        [
+            DrumHit(0.5, "kick"),
+            DrumHit(1.2, "snare"),
+        ],
+        song=SongMetadata(name="Tempo", artist="Tests", charter="pytest"),
+        bpm=120.0,
+        beat_times=[0.5, 1.0, 1.4],
+    )
+
+    assert any(event.tick == 384 and event.payload == "B 150000" for event in doc.sync)
+    expert = doc.drums.get(DrumDifficulty.EXPERT, [])
+    assert sorted((note.tick, note.note) for note in expert) == [(192, 0), (480, 1)]
+
+
+def test_quantize_is_opt_in() -> None:
+    song = SongMetadata(name="Quantize", artist="Tests", charter="pytest")
+    beats = [0.0, 0.5, 1.0]
+
+    unsnapped = hits_to_chart_document(
+        [DrumHit(0.51, "kick")],
+        song=song,
+        bpm=120.0,
+        beat_times=beats,
+    )
+    snapped = hits_to_chart_document(
+        [DrumHit(0.51, "kick")],
+        song=song,
+        bpm=120.0,
+        beat_times=beats,
+        quantize_divisor=16,
+    )
+
+    assert unsnapped.drums[DrumDifficulty.EXPERT][0].tick == 196
+    assert snapped.drums[DrumDifficulty.EXPERT][0].tick == 192
 
 
 # ---------------------------------------------------------------------------

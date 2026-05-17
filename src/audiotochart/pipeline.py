@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from audiotochart.audio import get_audio_duration_sec
+from audiotochart.chart.difficulty import generate_difficulties
 from audiotochart.chart.format import DrumDifficulty, SongMetadata, write_chart_file
 from audiotochart.chart.fake import create_fake_drum_chart
 from audiotochart.chart.midi import midi_to_chart_document
@@ -46,6 +47,7 @@ def generate_drum_chart_folder(
     bpm: float | None = None,
     resolution: int = 192,
     from_midi: Path | None = None,
+    quantize_divisor: int | None = None,
     on_progress: ProgressCallback | None = None
 ) -> Path:
     """Create a Clone Hero song folder with ``notes.chart``, ``song.ini``, and audio"""
@@ -68,11 +70,14 @@ def generate_drum_chart_folder(
     duration_sec = get_audio_duration_sec(source_audio)
     logger.info("Audio duration: %.2f s", duration_sec)
 
-    # Auto-detect BPM if not provided
+    beat_times: list[float] | None = None
+
+    # Auto-detect tempo and beat positions if not provided.
     if bpm is None:
         try:
             beat_grid = detect_beat_grid(source_audio)
             bpm = beat_grid.bpm
+            beat_times = [float(time) for time in beat_grid.beat_times]
             logger.info("Detected tempo: %.2f BPM (%d beats)", bpm, len(beat_grid.beat_times))
         except TempoError as e:
             logger.warning("Tempo detection failed: %s. Using default 120 BPM.", e)
@@ -88,7 +93,13 @@ def generate_drum_chart_folder(
         music_stream=stream_name,
     )
     if from_midi is None:
-        doc = create_fake_drum_chart(song=meta, duration_sec=duration_sec, bpm=bpm)
+        doc = create_fake_drum_chart(
+            song=meta,
+            duration_sec=duration_sec,
+            bpm=bpm,
+            beat_times=beat_times,
+            quantize_divisor=quantize_divisor,
+        )
     else:
         logger.info("Using MIDI drum transcription: %s", from_midi)
         doc = midi_to_chart_document(
@@ -96,10 +107,13 @@ def generate_drum_chart_folder(
             song=meta,
             bpm=bpm,
             resolution=resolution,
+            beat_times=beat_times,
+            quantize_divisor=quantize_divisor,
         )
     expert_notes = doc.drums.get(DrumDifficulty.EXPERT, [])
     if not expert_notes:
         logger.warning("No drum notes were generated; the chart will be empty.")
+    generate_difficulties(doc)
     _notify(STAGE_CHART, "done")
 
     logger.info("Writing Clone Hero song folder")

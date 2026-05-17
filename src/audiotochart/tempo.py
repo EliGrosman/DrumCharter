@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -32,8 +31,8 @@ def _detect_beat_grid_librosa(path: Path) -> BeatGrid:
     if len(y) == 0:
         raise TempoError(f"Audio file is empty: {path}")
 
-    # Estimate tempo using onset strength envelope
-    tempo_est, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+    tempo_est, beat_frames = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr)
 
     # beat_track returns a numpy array of tempo estimates
     if isinstance(tempo_est, np.ndarray):
@@ -47,12 +46,16 @@ def _detect_beat_grid_librosa(path: Path) -> BeatGrid:
     if bpm <= 0 or bpm < 20 or bpm > 300:
         raise TempoError(f"Detected BPM {bpm} is out of range [20, 300] for {path}")
 
-    # Get beat positions using the estimated tempo
-    beat_frames, _ = librosa.beat.beat_track(y=y, sr=sr, start_bpm=bpm)
+    # Get beat positions using the estimated tempo.
+    _tempo, beat_frames = librosa.beat.beat_track(
+        onset_envelope=onset_env,
+        sr=sr,
+        start_bpm=bpm,
+    )
     beat_times = librosa.frames_to_time(beat_frames, sr=sr)
 
-    if len(beat_times) == 0:
-        raise TempoError(f"No beats detected for {path}")
+    if len(beat_times) < 2:
+        raise TempoError(f"Insufficient beats detected for {path}")
 
     return BeatGrid(bpm=bpm, beat_times=beat_times)
 

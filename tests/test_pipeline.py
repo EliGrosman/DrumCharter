@@ -78,3 +78,23 @@ def test_manual_bpm_bypasses_tempo_detection(tmp_path: Path) -> None:
 
     chart = (folder / "notes.chart").read_text(encoding="utf-8")
     assert "0 = B 140000" in chart
+
+
+def test_detected_beat_times_drive_variable_sync_track(tmp_path: Path) -> None:
+    source_audio = _make_wav(tmp_path, "song.wav", duration_sec=2.0)
+
+    class FakeBeatGrid:
+        bpm = 120.0
+        beat_times = [0.5, 1.0, 1.4]
+
+    with patch("audiotochart.pipeline.detect_beat_grid", return_value=FakeBeatGrid()):
+        folder = pipeline.generate_drum_chart_folder(
+            source_audio=source_audio,
+            output_parent=tmp_path / "out",
+            song_name="Tempo",
+            artist_name="Tests",
+        )
+
+    chart = (folder / "notes.chart").read_text(encoding="utf-8")
+    assert "0 = B 120000" in chart
+    assert "384 = B 150000" in chart
