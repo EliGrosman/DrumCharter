@@ -221,6 +221,43 @@ def test_quantize_is_opt_in() -> None:
     assert snapped.drums[DrumDifficulty.EXPERT][0].tick == 192
 
 
+def test_uneven_beat_quantization_snaps_to_local_grid() -> None:
+    """Regression test: notes snap against local beat intervals, not average BPM.
+
+    Uneven beats [0.0, 1.0, 1.8, 2.4] produce inter-beat intervals of 1.0s and
+    0.8s. Sixteenth-note subdivisions of the 0.8s interval fall at 1.0, 1.2,
+    1.4, 1.6 — which differ from a constant 0.25s division. A hit at 1.21s
+    snapping to 1.2 (tick 240) proves the grid used actual beat positions.
+    """
+    song = SongMetadata(name="Uneven", artist="Tests", charter="pytest")
+    uneven_beats = [0.0, 1.0, 1.8, 2.4]
+    resolution = 192
+
+    # Hit 10ms past a 16th note: 0.51 → snaps to 0.5 → tick 96
+    hit_near_grid = DrumHit(0.51, "kick")
+    # Hit 10ms past a 16th note in the faster (0.8s) interval: 1.21 → snaps to 1.2 → tick 240
+    hit_near_fast_grid = DrumHit(1.21, "snare")
+    # Hit 100ms from nearest grid (0.25): too far, stays unsnapped at 0.15 → tick 29
+    hit_off_grid = DrumHit(0.15, "hihat")
+
+    doc = hits_to_chart_document(
+        [hit_near_grid, hit_near_fast_grid, hit_off_grid],
+        song=song,
+        bpm=60.0,
+        resolution=resolution,
+        beat_times=uneven_beats,
+        quantize_divisor=16,
+    )
+
+    expert = doc.drums[DrumDifficulty.EXPERT]
+    notes = {(n.tick, n.note) for n in expert}
+
+    assert (96, 0) in notes, "0.51s kick should snap to tick 96 (local 16th of 1.0s interval)"
+    assert (240, 1) in notes, "1.21s snare should snap to tick 240 (local 16th of 0.8s interval)"
+    assert (29, 66) in notes, "0.15s hihat should stay at tick 29 (too far from grid)"
+    assert (29, 2) in notes, "0.15s hihat pad should also be at tick 29"
+
+
 # ---------------------------------------------------------------------------
 # Fake chart integration
 # ---------------------------------------------------------------------------

@@ -63,6 +63,15 @@ def _setup_logging(verbose: bool) -> None:
         force=True,
     )
 
+QUANTIZE_CHOICES = {
+    "none": None,
+    "1/4": 4,
+    "1/8": 8,
+    "1/16": 16,
+    "1/32": 32,
+}
+
+
 def _run_generate(
     *,
     source_audio: Path,
@@ -77,6 +86,7 @@ def _run_generate(
     device: str | None = None,
     keep_workdir: bool = False,
     model_dir: Path | None = None,
+    quantize_divisor: int | None = 16,
 ) -> Path:
     transcriber_cls = _resolve_backend(backend)
     if backend == "model":
@@ -115,6 +125,7 @@ def _run_generate(
             separate_drums=separate_drums,
             device=device,
             keep_workdir=keep_workdir,
+            quantize_divisor=quantize_divisor,
             on_progress=_on_progress,
         )
     except (RuntimeError, ImportError) as e:
@@ -141,6 +152,13 @@ def cli() -> None:
 @click.option("--keep-workdir", is_flag=True, default=False, help="Preserve intermediate files for debugging")
 @click.option("--model-dir", type=click.Path(path_type=Path), default=None, help="Model directory for the 'model' backend")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed logging output")
+@click.option(
+    "--quantize",
+    type=click.Choice(list(QUANTIZE_CHOICES), case_sensitive=False),
+    default="1/16",
+    show_default=True,
+    help="Quantization grid subdivision (none = no snap)",
+)
 def generate_cmd(
     audio: Path | None,
     song: str | None,
@@ -154,6 +172,7 @@ def generate_cmd(
     keep_workdir: bool,
     model_dir: Path | None,
     verbose: bool,
+    quantize: str,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
     _setup_logging(verbose)
@@ -197,6 +216,7 @@ def generate_cmd(
                 device=device,
                 keep_workdir=keep_workdir,
                 model_dir=model_dir,
+                quantize_divisor=QUANTIZE_CHOICES[quantize],
             )
             console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
             return
@@ -204,7 +224,7 @@ def generate_cmd(
         assert audio is not None
         song_name = song or audio.stem
         artist_name = artist or "Unknown"
-        
+
         folder = _run_generate(
             source_audio=audio,
             song_name=song_name,
@@ -218,6 +238,7 @@ def generate_cmd(
             device=device,
             keep_workdir=keep_workdir,
             model_dir=model_dir,
+            quantize_divisor=QUANTIZE_CHOICES[quantize],
         )
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 
