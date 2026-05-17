@@ -19,7 +19,9 @@ from audiotochart.inference.checkpoint import (
 from audiotochart.inference.model import (
     ModelTranscriber,
     ModelTranscriberError,
+    _compute_adtof_spectrogram,
     _pick_peaks_simple,
+    _pick_peaks_original,
 )
 
 
@@ -216,6 +218,35 @@ def test_loads_checkpoint_with_original_metadata_pattern(tmp_path: Path) -> None
     assert not bundle.model.training
 
 
+def test_thresholds_json_length_mismatch_errors(tmp_path: Path) -> None:
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=3,
+        labels=["kick", "snare", "hihat"],
+    )
+    (model_dir / "thresholds.json").write_text(json.dumps({
+        "thresholds": [0.1, 0.2],
+    }))
+
+    with pytest.raises(ModelLoadError, match="thresholds.*2 entries.*expected 3"):
+        load_model_bundle(model_dir)
+
+
+def test_confidence_gates_length_mismatch_errors(tmp_path: Path) -> None:
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=3,
+        labels=["kick", "snare", "hihat"],
+    )
+    (model_dir / "thresholds.json").write_text(json.dumps({
+        "thresholds": [0.1, 0.2, 0.3],
+        "confidence_gates": [None, 0.9],
+    }))
+
+    with pytest.raises(ModelLoadError, match="confidence_gates.*2 entries.*expected 3"):
+        load_model_bundle(model_dir)
+
+
 # ---------------------------------------------------------------------------
 # ModelTranscriber — transcribe path
 # ---------------------------------------------------------------------------
@@ -330,6 +361,274 @@ def test_peak_picker_keeps_local_max_after_threshold_crossing() -> None:
     assert hits[0][2] == pytest.approx(0.9)
 
 
+def test_pick_peaks_original_matches_expected_peak_frames() -> None:
+    acts = np.array(
+        [
+            [0.6, 0.1],
+            [0.4, 0.7],
+            [0.8, 0.3],
+            [0.8, 0.6],
+            [0.7, 0.2],
+            [0.2, 0.6],
+            [0.9, 0.6],
+        ],
+        dtype=np.float32,
+    )
+
+    result = _pick_peaks_original(acts, thresholds=[0.5, 0.6], fps=10.0)
+
+    assert result == [
+        (0.0, 0, pytest.approx(0.6)),
+        (0.1, 1, pytest.approx(0.7)),
+        (0.2, 0, pytest.approx(0.8)),
+        (0.3, 1, pytest.approx(0.6)),
+        (0.5, 1, pytest.approx(0.6)),
+        (0.6, 0, pytest.approx(0.9)),
+    ]
+
+
+def test_adtof_spectrogram_uses_training_time_normalization(monkeypatch, tmp_path: Path) -> None:
+    pytest.importorskip("adtof_pytorch.audio")
+    pytest.importorskip("librosa")
+
+    captured_audio: list[np.ndarray] = []
+
+    class _FakeAudioProcessor:
+        fps = 100
+
+        def compute_stft(self, audio: np.ndarray) -> np.ndarray:
+            captured_audio.append(audio.copy())
+            return np.ones((2, 3), dtype=np.float32)
+
+        def apply_filterbank(self, stft: np.ndarray) -> np.ndarray:
+            assert stft.shape == (2, 3)
+            return np.ones((4, 3), dtype=np.float32)
+
+    monkeypatch.setattr(
+        "librosa.load",
+        lambda *_args, **_kwargs: (np.array([0.5, -1.0], dtype=np.float32), 44100),
+    )
+    monkeypatch.setattr("adtof_pytorch.audio.AudioProcessor", _FakeAudioProcessor)
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.01)
+    spec, fps = _compute_adtof_spectrogram(audio)
+
+    assert fps == 100.0
+    assert spec.shape == (3, 4, 1)
+    assert np.max(np.abs(captured_audio[0])) == pytest.approx(0.95)
+
+
+def test_confidence_gates_suppress_class_when_below_gate(tmp_path: Path) -> None:
+    """A class whose max activation is below its confidence gate should yield zero hits."""
+    import torch
+    model_dir = _make_model_dir(
+        tmp_path,
+        labels=["kick", "snare", "hihat"],
+        n_mels=4,
+        sample_rate=4000,
+        hop_length=200,
+        thresholds=[0.01, 0.01, 0.01],
+        extra_config={
+            "confidence_gates": [None, 0.9, None],
+        },
+    )
+    bundle = load_model_bundle(model_dir)
+
+    def _fake_forward(x):
+        import torch as _torch
+        B, T = x.shape[0], x.shape[1]
+        logits = _torch.zeros(B, T, 3)
+        logits[:, :, 0] = 10.0
+        logits[:, :, 1] = -10.0
+        logits[:, :, 2] = 10.0
+        return logits
+
+    bundle.model.forward = _fake_forward
+
+    from unittest.mock import patch
+    with patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle):
+        t = ModelTranscriber(model_dir=model_dir)
+        audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
+        hits = t.transcribe(audio)
+
+    instruments = {h.instrument for h in hits}
+    assert "snare" not in instruments
+    assert "kick" in instruments
+    assert "hihat" in instruments
+
+
+def test_confidence_gates_absent_does_nothing(tmp_path: Path) -> None:
+    """When no confidence_gates in config, all classes should produce hits as normal."""
+    import torch
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=2,
+        labels=["kick", "snare"],
+        n_mels=4,
+        sample_rate=4000,
+        hop_length=200,
+        thresholds=[0.01, 0.01],
+    )
+    bundle = load_model_bundle(model_dir)
+
+    def _fake_forward(x):
+        import torch as _torch
+        B, T = x.shape[0], x.shape[1]
+        logits = _torch.ones(B, T, 2) * 10.0
+        return logits
+
+    bundle.model.forward = _fake_forward
+
+    from unittest.mock import patch
+    with patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle):
+        t = ModelTranscriber(model_dir=model_dir)
+        audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
+        hits = t.transcribe(audio)
+
+    assert len(hits) > 0
+    instruments = {h.instrument for h in hits}
+    assert "kick" in instruments
+    assert "snare" in instruments
+
+
+def test_confidence_gates_partial_gating(tmp_path: Path) -> None:
+    """Only specified gates are applied; classes without gates pass through."""
+    import torch
+    model_dir = _make_model_dir(
+        tmp_path,
+        labels=["kick", "snare", "hihat"],
+        n_mels=4,
+        sample_rate=4000,
+        hop_length=200,
+        thresholds=[0.01, 0.01, 0.01],
+        extra_config={
+            "confidence_gates": [0.9, None, None],
+        },
+    )
+    bundle = load_model_bundle(model_dir)
+
+    def _fake_forward(x):
+        import torch as _torch
+        B, T = x.shape[0], x.shape[1]
+        logits = _torch.zeros(B, T, 3)
+        logits[:, :, 0] = -10.0
+        logits[:, :, 1] = 10.0
+        logits[:, :, 2] = 10.0
+        return logits
+
+    bundle.model.forward = _fake_forward
+
+    from unittest.mock import patch
+    with patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle):
+        t = ModelTranscriber(model_dir=model_dir)
+        audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
+        hits = t.transcribe(audio)
+
+    instruments = {h.instrument for h in hits}
+    assert "kick" not in instruments
+    assert "snare" in instruments
+    assert "hihat" in instruments
+
+
+def test_tom_consistency_is_off_by_default(tmp_path: Path) -> None:
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=8,
+        labels=PRO8_LABELS,
+        n_mels=4,
+        sample_rate=4000,
+        hop_length=200,
+        thresholds=[0.01] * 8,
+    )
+    bundle = load_model_bundle(model_dir)
+
+    def _fake_forward(x):
+        import torch as _torch
+        B, T = x.shape[0], x.shape[1]
+        return _torch.ones(B, T, 8) * 10.0
+
+    bundle.model.forward = _fake_forward
+
+    with (
+        patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle),
+        patch("audiotochart.inference.tom_consistency.apply_tom_consistency") as apply_tc,
+    ):
+        t = ModelTranscriber(model_dir=model_dir)
+        audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
+        hits = t.transcribe(audio)
+
+    assert hits
+    apply_tc.assert_not_called()
+
+
+def test_tom_consistency_opt_in_runs_for_pro8_labels(tmp_path: Path) -> None:
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=8,
+        labels=PRO8_LABELS,
+        n_mels=4,
+        sample_rate=4000,
+        hop_length=200,
+        thresholds=[0.01] * 8,
+    )
+    bundle = load_model_bundle(model_dir)
+
+    def _fake_forward(x):
+        import torch as _torch
+        B, T = x.shape[0], x.shape[1]
+        return _torch.ones(B, T, 8) * 10.0
+
+    bundle.model.forward = _fake_forward
+
+    with (
+        patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle),
+        patch("audiotochart.inference.tom_consistency.apply_tom_consistency") as apply_tc,
+    ):
+        apply_tc.side_effect = lambda onsets, acts, **_: (
+            onsets,
+            {"n_reassigned": 0, "n_tom_hits": 0, "convention": []},
+        )
+        t = ModelTranscriber(model_dir=model_dir, tom_consistency=True)
+        audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
+        hits = t.transcribe(audio)
+
+    assert hits
+    apply_tc.assert_called_once()
+    assert apply_tc.call_args.kwargs["fps"] == pytest.approx(20.0)
+
+
+def test_tom_consistency_skips_custom_8_class_models(tmp_path: Path) -> None:
+    labels = [f"class_{i}" for i in range(8)]
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=8,
+        labels=labels,
+        n_mels=4,
+        sample_rate=4000,
+        hop_length=200,
+        thresholds=[0.01] * 8,
+    )
+    bundle = load_model_bundle(model_dir)
+
+    def _fake_forward(x):
+        import torch as _torch
+        B, T = x.shape[0], x.shape[1]
+        return _torch.ones(B, T, 8) * 10.0
+
+    bundle.model.forward = _fake_forward
+
+    with (
+        patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle),
+        patch("audiotochart.inference.tom_consistency.apply_tom_consistency") as apply_tc,
+    ):
+        t = ModelTranscriber(model_dir=model_dir, tom_consistency=True)
+        audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
+        hits = t.transcribe(audio)
+
+    assert hits
+    apply_tc.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
@@ -379,3 +678,5 @@ def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "--model-dir" in result.output
     assert "model" in result.output
+    assert "--tom-consistency" in result.output
+    assert "--no-tom-consistency" in result.output

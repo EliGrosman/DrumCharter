@@ -115,6 +115,21 @@ def _build_model_for_architecture(architecture: str, config: dict) -> object:
     )
 
 
+def _validate_metadata_list_length(
+    key: str,
+    value: object,
+    expected_len: int,
+    source: Path,
+) -> None:
+    if not isinstance(value, list):
+        raise ModelLoadError(f"{source.name} field {key!r} must be a list")
+    if len(value) != expected_len:
+        raise ModelLoadError(
+            f"{source.name} field {key!r} has {len(value)} entries, "
+            f"expected {expected_len}"
+        )
+
+
 def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
     """Load a model bundle from *model_dir*.
 
@@ -190,15 +205,46 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
             f"has no default labels"
         )
 
+    num_classes = config.get("num_classes", len(labels))
+
     # Merge thresholds.json into config so peak-picking can find them.
     thr_path = model_dir / "thresholds.json"
     if thr_path.is_file():
         thr_data = json.loads(thr_path.read_text(encoding="utf-8"))
         if "thresholds" in thr_data:
+            _validate_metadata_list_length(
+                "thresholds",
+                thr_data["thresholds"],
+                num_classes,
+                thr_path,
+            )
             config.setdefault("thresholds", thr_data["thresholds"])
             log.info("Loaded %d thresholds from %s", len(thr_data["thresholds"]), thr_path)
+        if "confidence_gates" in thr_data:
+            _validate_metadata_list_length(
+                "confidence_gates",
+                thr_data["confidence_gates"],
+                num_classes,
+                thr_path,
+            )
+            config.setdefault("confidence_gates", thr_data["confidence_gates"])
+            log.info("Loaded %d confidence_gates from %s", len(thr_data["confidence_gates"]), thr_path)
 
-    num_classes = config.get("num_classes", len(labels))
+    if "thresholds" in config:
+        _validate_metadata_list_length(
+            "thresholds",
+            config["thresholds"],
+            num_classes,
+            cfg_path,
+        )
+    if "confidence_gates" in config:
+        _validate_metadata_list_length(
+            "confidence_gates",
+            config["confidence_gates"],
+            num_classes,
+            cfg_path,
+        )
+
     log.info(
         "Building model architecture %r (num_classes=%d, n_mels=%d)",
         arch_name,

@@ -79,13 +79,14 @@ def _run_generate(
     keep_workdir: bool = False,
     model_dir: Path | None = None,
     quantize_divisor: int | None = 16,
+    tom_consistency: bool = False,
 ) -> Path:
     transcriber_cls = _resolve_backend(backend)
     if backend == "model":
         if model_dir is None:
             console.print("[red]Model backend requires --model-dir[/red]")
             raise SystemExit(1)
-        transcriber = transcriber_cls(model_dir=model_dir, device=device)
+        transcriber = transcriber_cls(model_dir=model_dir, device=device, tom_consistency=tom_consistency)
     else:
         transcriber = transcriber_cls()
 
@@ -151,6 +152,12 @@ def cli() -> None:
     show_default=True,
     help="Quantization grid subdivision (none = no snap)",
 )
+@click.option(
+    "--tom-consistency/--no-tom-consistency",
+    default=False,
+    show_default=True,
+    help="Enable/disable tom consistency post-processing",
+)
 def generate_cmd(
     audio: Path | None,
     song: str | None,
@@ -165,6 +172,7 @@ def generate_cmd(
     model_dir: Path | None,
     verbose: bool,
     quantize: str,
+    tom_consistency: bool,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
     _setup_logging(verbose)
@@ -209,6 +217,7 @@ def generate_cmd(
                 keep_workdir=keep_workdir,
                 model_dir=model_dir,
                 quantize_divisor=QUANTIZE_CHOICES[quantize],
+                tom_consistency=tom_consistency,
             )
             console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
             return
@@ -231,6 +240,7 @@ def generate_cmd(
             keep_workdir=keep_workdir,
             model_dir=model_dir,
             quantize_divisor=QUANTIZE_CHOICES[quantize],
+            tom_consistency=tom_consistency,
         )
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 
