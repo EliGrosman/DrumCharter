@@ -108,46 +108,6 @@ def build_quantize_grid(
     return unique
 
 
-def filter_hits(hits: list[DrumHit], min_confidence: float) -> list[DrumHit]:
-    """Remove hits below the minimum confidence threshold."""
-    return [h for h in hits if h.confidence >= min_confidence]
-
-
-def merge_nearby_hits(hits: list[DrumHit], window_sec: float = 0.03) -> list[DrumHit]:
-    """Merge hits of the same instrument that are too close together.
-
-    When multiple hits of the same instrument fall within ``window_sec`` of each
-    other they are merged into a single hit at the highest-confidence position.
-    """
-    if not hits:
-        return []
-
-    # Group by instrument
-    groups: dict[str, list[DrumHit]] = {}
-    for h in hits:
-        groups.setdefault(h.instrument, []).append(h)
-
-    result: list[DrumHit] = []
-    for instrument, group in groups.items():
-        sorted_group = sorted(group, key=lambda h: h.time_sec)
-        merged = [sorted_group[0]]
-        for hit in sorted_group[1:]:
-            last = merged[-1]
-            if hit.time_sec - last.time_sec < window_sec:
-                # Keep the higher-confidence hit
-                if hit.confidence > last.confidence:
-                    merged[-1] = DrumHit(
-                        time_sec=hit.time_sec,
-                        instrument=hit.instrument,
-                        confidence=hit.confidence,
-                    )
-            else:
-                merged.append(hit)
-        result.extend(merged)
-
-    return result
-
-
 def snap_hits_to_grid(
     hits: list[DrumHit],
     beat_grid: BeatGrid,

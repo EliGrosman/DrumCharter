@@ -8,7 +8,6 @@ from audiotochart.chart.format import (
     ChartDocument,
     DrumDifficulty,
     DrumNote,
-    SectionEvent,
     SyncTrackEvent,
     bpm_to_chart_integer,
 )
@@ -25,9 +24,7 @@ from audiotochart.postprocess import (
     BeatGrid,
     make_beat_grid_from_bpm,
     normalize_beat_times,
-    filter_hits,
     limit_simultaneous_hits,
-    merge_nearby_hits,
     snap_hits_to_grid,
 )
 
@@ -226,12 +223,7 @@ def hits_to_chart_document(
     resolution: int = 192,
     beat_times: Sequence[float] | None = None,
     quantize_divisor: int | None = None,
-    min_confidence: float = 0.5,
-    merge_window_sec: float = 0.03,
 ) -> ChartDocument:
-    hits = filter_hits(hits, min_confidence)
-    hits = merge_nearby_hits(hits, merge_window_sec)
-
     if quantize_divisor is not None and hits:
         quantize_beats = normalize_beat_times(beat_times)
         if len(quantize_beats) < 2:
@@ -270,7 +262,7 @@ def hits_to_chart_document(
         ]
     else:
         sync = build_sync_track_from_beats(beat_times, resolution=resolution)
-    events = [SectionEvent(0, "section Intro")]
+    events: list = []
 
     return ChartDocument(
         song=song,

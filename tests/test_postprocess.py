@@ -8,67 +8,10 @@ from audiotochart.drums import DrumHit
 from audiotochart.postprocess import (
     BeatGrid,
     build_quantize_grid,
-    filter_hits,
     limit_simultaneous_hits,
     make_beat_grid_from_bpm,
-    merge_nearby_hits,
     snap_hits_to_grid,
 )
-
-
-# ---------------------------------------------------------------------------
-# filter_hits
-# ---------------------------------------------------------------------------
-
-
-def test_filter_hits_removes_low_confidence() -> None:
-    hits = [
-        DrumHit(0.0, "kick", confidence=0.9),
-        DrumHit(0.1, "snare", confidence=0.2),
-        DrumHit(0.2, "hihat", confidence=0.5),
-    ]
-    result = filter_hits(hits, min_confidence=0.5)
-    assert len(result) == 2
-    assert all(h.confidence >= 0.5 for h in result)
-
-
-def test_filter_hits_empty() -> None:
-    assert filter_hits([], min_confidence=0.5) == []
-
-
-# ---------------------------------------------------------------------------
-# merge_nearby_hits
-# ---------------------------------------------------------------------------
-
-
-def test_merge_nearby_kick_hits() -> None:
-    hits = [
-        DrumHit(0.0, "kick", confidence=0.8),
-        DrumHit(0.01, "kick", confidence=0.9),
-        DrumHit(0.5, "kick", confidence=0.7),
-    ]
-    result = merge_nearby_hits(hits)
-    assert len(result) == 2
-    # The first two should be merged, keeping the higher confidence one
-    assert result[0].confidence == 0.9
-
-
-def test_merge_nearby_different_instruments() -> None:
-    hits = [
-        DrumHit(0.0, "kick", confidence=0.8),
-        DrumHit(0.01, "snare", confidence=0.9),
-    ]
-    result = merge_nearby_hits(hits)
-    assert len(result) == 2
-
-
-def test_merge_nearby_no_merge_needed() -> None:
-    hits = [
-        DrumHit(0.0, "kick", confidence=0.8),
-        DrumHit(0.5, "kick", confidence=0.7),
-    ]
-    result = merge_nearby_hits(hits)
-    assert len(result) == 2
 
 
 # ---------------------------------------------------------------------------

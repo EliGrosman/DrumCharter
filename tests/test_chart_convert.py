@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from audiotochart.chart import DrumDifficulty, SectionEvent
+from audiotochart.chart import DrumDifficulty
 from audiotochart.chart.convert import (
     INSTRUMENT_MAP,
     build_beat_tempo_map,
@@ -161,7 +161,7 @@ def test_hits_produce_sync_and_events() -> None:
     )
     assert any(e.payload == "TS 4" for e in doc.sync)
     assert any(e.payload.startswith("B ") for e in doc.sync)
-    assert any(isinstance(e, SectionEvent) and "Intro" in e.text for e in doc.events)
+    assert len(doc.events) == 0
 
 
 def test_multiple_instruments_produce_correct_notes() -> None:
