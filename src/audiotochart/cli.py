@@ -61,6 +61,9 @@ def _run_generate(
     bpm: float | None,
     from_midi: Path | None,
     backend: str = "fake",
+    separate_drums: bool = False,
+    device: str | None = None,
+    keep_workdir: bool = False,
 ) -> Path:
     transcriber_cls = _resolve_backend(backend)
     transcriber = transcriber_cls()
@@ -74,6 +77,9 @@ def _run_generate(
             bpm=bpm,
             from_midi=from_midi,
             transcriber=transcriber,
+            separate_drums=separate_drums,
+            device=device,
+            keep_workdir=keep_workdir,
         )
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")
@@ -91,6 +97,9 @@ def cli() -> None:
 @click.option("--bpm", type=float, default=None, help="BPM for chart timing (auto-detected if not provided)")
 @click.option("--from-midi", type=click.Path(path_type=Path, exists=False), default=None, help="Developer path: build drum notes from a MIDI drum file")
 @click.option("--backend", type=click.Choice(list(BACKENDS)), default="fake", help="Inference backend to use")
+@click.option("--separate-drums/--no-separate-drums", default=False, help="Isolate drums with Demucs before transcription")
+@click.option("--device", default=None, help="PyTorch device (cuda or cpu) for Demucs")
+@click.option("--keep-workdir", is_flag=True, default=False, help="Preserve intermediate files for debugging")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed logging output")
 def generate_cmd(
     audio: Path | None,
@@ -100,6 +109,9 @@ def generate_cmd(
     bpm: float | None,
     from_midi: Path | None,
     backend: str,
+    separate_drums: bool,
+    device: str | None,
+    keep_workdir: bool,
     verbose: bool,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
@@ -140,6 +152,9 @@ def generate_cmd(
                 bpm=bpm,
                 from_midi=from_midi,
                 backend=backend,
+                separate_drums=separate_drums,
+                device=device,
+                keep_workdir=keep_workdir,
             )
             console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
             return
@@ -157,6 +172,9 @@ def generate_cmd(
             bpm=bpm,
             from_midi=from_midi,
             backend=backend,
+            separate_drums=separate_drums,
+            device=device,
+            keep_workdir=keep_workdir,
         )
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 

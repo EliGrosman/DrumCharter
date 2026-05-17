@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Callable
 
@@ -50,10 +51,13 @@ def generate_drum_chart_folder(
     from_midi: Path | None = None,
     quantize_divisor: int | None = None,
     transcriber: DrumTranscriber | None = None,
-    on_progress: ProgressCallback | None = None
+    on_progress: ProgressCallback | None = None,
+    separate_drums: bool = False,
+    device: str | None = None,
+    keep_workdir: bool = False,
 ) -> Path:
     """Create a Clone Hero song folder with ``notes.chart``, ``song.ini``, and audio"""
-    
+
     source_audio = Path(source_audio)
     if not source_audio.is_file():
         raise FileNotFoundError(f"Source audio not found: {source_audio}")
@@ -86,6 +90,20 @@ def generate_drum_chart_folder(
             bpm = 120.0
 
     stream_name = _stream_filename(source_audio)
+
+    # Optional drum source separation
+    transcribe_audio = source_audio
+    _tmp_dir: Path | None = None
+    if separate_drums:
+        from audiotochart.separation import isolate_drums
+
+        _tmp_dir = Path(tempfile.mkdtemp(prefix="audiotochart-sep-"))
+        drum_wav = _tmp_dir / "drums.wav"
+        logger.info("Isolating drums via Demucs...")
+        isolate_drums(source_audio, drum_wav, device=device)
+        transcribe_audio = drum_wav
+        logger.info("Drum stem ready at %s", drum_wav)
+
     meta = SongMetadata(
         name=song_name,
         artist=artist_name,
@@ -98,7 +116,7 @@ def generate_drum_chart_folder(
         if transcriber is None:
             from audiotochart.inference.fake import FakeTranscriber
             transcriber = FakeTranscriber()
-        hits = transcriber.transcribe(source_audio)
+        hits = transcriber.transcribe(transcribe_audio)
         logger.info("Transcriber returned %d drum hits", len(hits))
         doc = hits_to_chart_document(
             hits,
@@ -142,6 +160,11 @@ def generate_drum_chart_folder(
     )
     shutil.copy2(source_audio, folder / stream_name)
     _notify(STAGE_OUTPUT, "done")
+
+    # Clean up separation workdir unless --keep-workdir
+    if _tmp_dir is not None and not keep_workdir:
+        shutil.rmtree(_tmp_dir, ignore_errors=True)
+        logger.info("Cleaned up separation workdir %s", _tmp_dir)
 
     logger.info("Chart folder generated at %s", folder)
     return folder
