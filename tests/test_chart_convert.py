@@ -72,6 +72,66 @@ def test_unknown_instrument_raises() -> None:
         )
 
 
+def test_all_pro8_pad_notes() -> None:
+    """Every pro8 instrument maps to the correct Clone Hero pad number."""
+    pro8_pads: list[tuple[str, set[int]]] = [
+        ("kick", {0}),
+        ("snare", {1}),
+        ("hihat", {2}),
+        ("tom_yellow", {2}),
+        ("ride", {3}),
+        ("tom_blue", {3}),
+        ("crash", {4}),
+        ("tom_green", {4}),
+    ]
+    for instrument, expected_pads in pro8_pads:
+        doc = hits_to_chart_document(
+            [DrumHit(0.0, instrument)],
+            song=SongMetadata(name="P", artist="Q", charter="R"),
+            bpm=120.0,
+        )
+        expert = doc.drums.get(DrumDifficulty.EXPERT, [])
+        pad_notes = {n.note for n in expert if n.note <= 4}
+        assert pad_notes == expected_pads, (
+            f"{instrument}: expected pads {expected_pads}, got {pad_notes}"
+        )
+
+
+def test_cymbal_instruments_emit_modifiers() -> None:
+    """hihat, ride, and crash produce cymbal modifier notes (66, 67, 68)."""
+    cymbal_cases: list[tuple[str, set[int]]] = [
+        ("hihat", {66}),
+        ("ride", {67}),
+        ("crash", {68}),
+    ]
+    for instrument, expected_cymbals in cymbal_cases:
+        doc = hits_to_chart_document(
+            [DrumHit(0.0, instrument)],
+            song=SongMetadata(name="C", artist="D", charter="E"),
+            bpm=120.0,
+        )
+        expert = doc.drums.get(DrumDifficulty.EXPERT, [])
+        cymbal_notes = {n.note for n in expert if n.note >= 66}
+        assert cymbal_notes == expected_cymbals, (
+            f"{instrument}: expected cymbals {expected_cymbals}, got {cymbal_notes}"
+        )
+
+
+def test_tom_instruments_no_cymbal_modifiers() -> None:
+    """tom_yellow, tom_blue, tom_green produce pad-only notes (no cymbal)."""
+    for instrument in ("tom_yellow", "tom_blue", "tom_green"):
+        doc = hits_to_chart_document(
+            [DrumHit(0.0, instrument)],
+            song=SongMetadata(name="T", artist="U", charter="V"),
+            bpm=120.0,
+        )
+        expert = doc.drums.get(DrumDifficulty.EXPERT, [])
+        cymbal_notes = {n.note for n in expert if n.note >= 66}
+        assert cymbal_notes == set(), (
+            f"{instrument}: should have no cymbal modifiers, got {cymbal_notes}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # hits_to_chart_document
 # ---------------------------------------------------------------------------
