@@ -21,3 +21,5 @@ wheels/
 *.wav
 out/
 examples/
+
+models/

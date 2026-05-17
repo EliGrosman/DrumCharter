@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 console = Console()
 
-BACKENDS: dict[str, type[DrumTranscriber] | None] = {
+BACKENDS: dict[str, type | None] = {
     "fake": FakeTranscriber,
 }
 
@@ -29,13 +29,24 @@ try:
 except ImportError:
     BACKENDS["adtof"] = None
 
+try:
+    from audiotochart.inference.model import ModelTranscriber
+    BACKENDS["model"] = ModelTranscriber
+except ImportError:
+    BACKENDS["model"] = None
 
-def _resolve_backend(backend: str) -> type[DrumTranscriber]:
+
+def _resolve_backend(backend: str) -> type:
     cls = BACKENDS.get(backend)
     if cls is None:
         if backend == "adtof":
             console.print(
                 "[red]ADTOF backend requires: [bold]uv sync --extra ai[/bold][/red]"
+            )
+        elif backend == "model":
+            console.print(
+                "[red]Model backend requires torch. Install the 'ai' extra: "
+                "[bold]uv sync --extra ai[/bold][/red]"
             )
         else:
             available = ", ".join(BACKENDS)
@@ -65,9 +76,16 @@ def _run_generate(
     separate_drums: bool = False,
     device: str | None = None,
     keep_workdir: bool = False,
+    model_dir: Path | None = None,
 ) -> Path:
-    transcriber_cls = _resolve_backend(backend)
-    transcriber = transcriber_cls()
+    if backend == "model":
+        if model_dir is None:
+            console.print("[red]Model backend requires --model-dir[/red]")
+            raise SystemExit(1)
+        transcriber = ModelTranscriber(model_dir=model_dir, device=device)
+    else:
+        transcriber_cls = _resolve_backend(backend)
+        transcriber = transcriber_cls()
 
     stage_labels = dict(STAGES)
     status: Status | None = None
@@ -121,6 +139,7 @@ def cli() -> None:
 @click.option("--separate-drums/--no-separate-drums", default=False, help="Isolate drums with Demucs before transcription")
 @click.option("--device", default=None, help="PyTorch device (cuda or cpu) for Demucs")
 @click.option("--keep-workdir", is_flag=True, default=False, help="Preserve intermediate files for debugging")
+@click.option("--model-dir", type=click.Path(path_type=Path), default=None, help="Model directory for the 'model' backend")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed logging output")
 def generate_cmd(
     audio: Path | None,
@@ -133,6 +152,7 @@ def generate_cmd(
     separate_drums: bool,
     device: str | None,
     keep_workdir: bool,
+    model_dir: Path | None,
     verbose: bool,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
@@ -176,6 +196,7 @@ def generate_cmd(
                 separate_drums=separate_drums,
                 device=device,
                 keep_workdir=keep_workdir,
+                model_dir=model_dir,
             )
             console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
             return
@@ -196,6 +217,7 @@ def generate_cmd(
             separate_drums=separate_drums,
             device=device,
             keep_workdir=keep_workdir,
+            model_dir=model_dir,
         )
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 
