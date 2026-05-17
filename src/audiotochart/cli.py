@@ -89,9 +89,9 @@ def _resolve_onset_decoder_dir(
     candidate = Path(configured).expanduser()
     if candidate.exists():
         return candidate.resolve()
-    logging.getLogger(__name__).debug(
-        "Onset decoder path %s does not exist; using baseline model output",
-        candidate,
+    console.print(
+        "[yellow]Skipping onset decoder: "
+        f"{candidate} was not found; using baseline model output.[/yellow]"
     )
     return None
 

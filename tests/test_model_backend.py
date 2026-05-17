@@ -908,7 +908,7 @@ def test_cli_missing_default_onset_decoder_dir_does_not_block_baseline(
 
     runner = CliRunner()
     with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
-        runner.invoke(cli, [
+        result = runner.invoke(cli, [
             "generate", str(audio),
             "--backend", "model",
             "--no-separate-drums",
@@ -917,6 +917,8 @@ def test_cli_missing_default_onset_decoder_dir_does_not_block_baseline(
         ])
 
     assert seen_decoder_dir is None
+    assert "Skipping onset decoder" in result.output
+    assert str(tmp_path / "missing-decoder") in result.output
 
 
 def test_cli_explicit_bad_onset_decoder_path_is_clean(tmp_path: Path) -> None:
