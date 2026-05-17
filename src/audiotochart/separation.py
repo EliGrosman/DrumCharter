@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from audiotochart.device import resolve_torch_device
+
 log = logging.getLogger(__name__)
 
 
@@ -27,8 +29,8 @@ def isolate_drums(
     out_wav:
         Destination path for the isolated drums WAV.
     device:
-        PyTorch device string (``"cuda"`` or ``"cpu"``).  Auto-detected when
-        *None*.
+        PyTorch device string (``"auto"``, ``"cuda"``, or ``"cpu"``).
+        ``"auto"`` and ``None`` use CUDA when available, otherwise CPU.
     progress:
         Show a tqdm progress bar during separation.
     model_name:
@@ -51,7 +53,6 @@ def isolate_drums(
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
     try:
-        import torch as th
         import soundfile as sf
         from demucs.apply import apply_model
         from demucs.pretrained import get_model
@@ -61,8 +62,7 @@ def isolate_drums(
             "Demucs separation requires: uv sync --extra ai"
         ) from exc
 
-    if device is None:
-        device = "cuda" if th.cuda.is_available() else "cpu"
+    device = resolve_torch_device(device, purpose="Demucs separation")
 
     log.info("Loading Demucs model %r on %s", model_name, device)
     try:

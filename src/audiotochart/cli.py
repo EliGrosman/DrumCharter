@@ -14,6 +14,7 @@ from audiotochart.pipeline import STAGES, generate_drum_chart_folder
 from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
 from audiotochart.postprocess import QUANTIZE_CHOICES
+from audiotochart.device import VALID_TORCH_DEVICES
 
 if TYPE_CHECKING:
     from audiotochart.inference.base import DrumTranscriber
@@ -75,7 +76,7 @@ def _run_generate(
     from_midi: Path | None,
     backend: str = "fake",
     separate_drums: bool = False,
-    device: str | None = None,
+    device: str | None = "auto",
     keep_workdir: bool = False,
     model_dir: Path | None = None,
     quantize_divisor: int | None = 16,
@@ -141,7 +142,13 @@ def cli() -> None:
 @click.option("--from-midi", type=click.Path(path_type=Path, exists=False), default=None, help="Developer path: build drum notes from a MIDI drum file")
 @click.option("--backend", type=click.Choice(list(BACKENDS)), default="fake", help="Inference backend to use")
 @click.option("--separate-drums/--no-separate-drums", default=False, help="Isolate drums with Demucs before transcription")
-@click.option("--device", default=None, help="PyTorch device (cuda or cpu) for Demucs")
+@click.option(
+    "--device",
+    type=click.Choice(VALID_TORCH_DEVICES),
+    default="auto",
+    show_default=True,
+    help="PyTorch device for Demucs and model backend",
+)
 @click.option("--keep-workdir", is_flag=True, default=False, help="Preserve intermediate files for debugging")
 @click.option("--model-dir", type=click.Path(path_type=Path), default=None, help="Model directory for the 'model' backend")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed logging output")

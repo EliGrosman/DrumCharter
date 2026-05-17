@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from audiotochart.chart.drum_vocab import PRO8_LABELS
+from audiotochart.device import resolve_torch_device
 from audiotochart.drums import DrumHit
 from audiotochart.inference.checkpoint import (
     ModelBundle,
@@ -47,7 +48,7 @@ class ModelTranscriber:
         tom_consistency: bool = False,
     ) -> None:
         self._model_dir = Path(model_dir) if model_dir else None
-        self._device = device or "cpu"
+        self._device = device or "auto"
         self._tom_consistency = tom_consistency
         self._bundle: ModelBundle | None = None
 
@@ -58,7 +59,8 @@ class ModelTranscriber:
             raise ModelTranscriberError(
                 "ModelTranscriber has no model_dir configured"
             )
-        self._bundle = load_model_bundle(self._model_dir, device=self._device)
+        device = resolve_torch_device(self._device, purpose="model backend")
+        self._bundle = load_model_bundle(self._model_dir, device=device)
         return self._bundle
 
     def transcribe(self, audio_path: Path) -> list[DrumHit]:

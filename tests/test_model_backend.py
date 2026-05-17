@@ -11,6 +11,7 @@ import pytest
 from audiotochart.drums import DrumHit
 from audiotochart.inference.checkpoint import (
     ModelLoadError,
+    ModelBundle,
     PRO8_ARCHITECTURE,
     load_model_bundle,
     PRO8_LABELS,
@@ -256,6 +257,21 @@ def test_transcriber_no_model_dir_errors() -> None:
     t = ModelTranscriber()
     with pytest.raises(ModelTranscriberError, match="no model_dir"):
         t._ensure_loaded()
+
+
+def test_transcriber_auto_device_resolves_before_loading(monkeypatch, tmp_path: Path) -> None:
+    import torch
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+
+    bundle = ModelBundle(model=object(), labels=[], device="cpu")
+    with patch("audiotochart.inference.model.load_model_bundle", return_value=bundle) as mock_load:
+        t = ModelTranscriber(model_dir=model_dir, device="auto")
+        assert t._ensure_loaded() is bundle
+
+    mock_load.assert_called_once_with(model_dir, device="cpu")
 
 
 def test_transcriber_missing_audio_file(tmp_path: Path) -> None:
@@ -669,6 +685,44 @@ def test_cli_backend_model_load_error_is_clean(tmp_path: Path) -> None:
     assert "Traceback" not in result.output
 
 
+def test_cli_invalid_device_is_rejected() -> None:
+    from click.testing import CliRunner
+    from audiotochart.cli import cli
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["generate", "--device", "cdua"])
+
+    assert result.exit_code != 0
+    assert "Invalid value for '--device'" in result.output
+    assert "cdua" in result.output
+
+
+def test_cli_explicit_cuda_unavailable_is_clean(monkeypatch, tmp_path: Path) -> None:
+    import torch
+    from click.testing import CliRunner
+    from audiotochart.cli import cli
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = _make_model_dir(tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "generate", str(audio),
+        "--backend", "model",
+        "--model-dir", str(model_dir),
+        "--device", "cuda",
+        "--song", "Test",
+        "--artist", "Tester",
+        "--bpm", "120",
+        "-o", str(tmp_path / "out"),
+    ])
+
+    assert result.exit_code != 0
+    assert "CUDA was requested for model backend" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
     from click.testing import CliRunner
     from audiotochart.cli import cli
@@ -678,5 +732,9 @@ def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "--model-dir" in result.output
     assert "model" in result.output
+    assert "--device" in result.output
+    assert "auto" in result.output
+    assert "cpu" in result.output
+    assert "cuda" in result.output
     assert "--tom-consistency" in result.output
     assert "--no-tom-consistency" in result.output

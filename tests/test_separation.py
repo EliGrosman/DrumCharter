@@ -77,6 +77,41 @@ class TestIsolateDrums:
             assert result == out
 
             modules["soundfile"].write.assert_called_once()
+            _, kwargs = modules["demucs"].apply.apply_model.call_args
+            assert kwargs["device"] == "cpu"
+        finally:
+            _restore_modules(originals)
+
+    def test_auto_device_uses_cuda_when_available(self, tmp_path: Path):
+        modules, originals = _mock_demucs_env()
+        try:
+            modules["torch"].cuda.is_available.return_value = True
+            from audiotochart.separation import isolate_drums
+
+            audio = _make_wav(tmp_path, "input.wav")
+            out = tmp_path / "drums.wav"
+
+            tensor_mock = MagicMock()
+            tensor_mock.cpu.return_value.clamp.return_value.numpy.return_value.T = [[0.0]]
+            modules["demucs"].apply.apply_model.return_value = [tensor_mock]
+
+            isolate_drums(audio, out, device="auto", progress=False)
+
+            _, kwargs = modules["demucs"].apply.apply_model.call_args
+            assert kwargs["device"] == "cuda"
+        finally:
+            _restore_modules(originals)
+
+    def test_explicit_cuda_errors_when_unavailable(self, tmp_path: Path):
+        modules, originals = _mock_demucs_env()
+        try:
+            modules["torch"].cuda.is_available.return_value = False
+            from audiotochart.separation import isolate_drums
+
+            audio = _make_wav(tmp_path, "input.wav")
+
+            with pytest.raises(RuntimeError, match="CUDA was requested for Demucs separation"):
+                isolate_drums(audio, tmp_path / "drums.wav", device="cuda", progress=False)
         finally:
             _restore_modules(originals)
 
