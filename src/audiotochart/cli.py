@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 from contextlib import ExitStack
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 import tempfile
@@ -11,11 +13,43 @@ from audiotochart.pipeline import generate_drum_chart_folder
 from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
 
+if TYPE_CHECKING:
+    from audiotochart.inference.base import DrumTranscriber
+
 console = Console()
 
-BACKENDS: dict[str, type[FakeTranscriber]] = {
+BACKENDS: dict[str, type[DrumTranscriber] | None] = {
     "fake": FakeTranscriber,
 }
+
+try:
+    from audiotochart.inference.adtof import AdtofTranscriber
+    BACKENDS["adtof"] = AdtofTranscriber
+except ImportError:
+    BACKENDS["adtof"] = None
+
+
+def _resolve_backend(backend: str) -> type[DrumTranscriber]:
+    cls = BACKENDS.get(backend)
+    if cls is None:
+        if backend == "adtof":
+            console.print(
+                "[red]ADTOF backend requires: [bold]uv sync --extra ai[/bold][/red]"
+            )
+        else:
+            available = ", ".join(BACKENDS)
+            console.print(f"[red]Unknown backend '{backend}'. Available: {available}[/red]")
+        raise SystemExit(1)
+    return cls
+
+
+def _setup_logging(verbose: bool) -> None:
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
 
 def _run_generate(
     *,
@@ -28,7 +62,8 @@ def _run_generate(
     from_midi: Path | None,
     backend: str = "fake",
 ) -> Path:
-    transcriber = BACKENDS[backend]()
+    transcriber_cls = _resolve_backend(backend)
+    transcriber = transcriber_cls()
     try:
         return generate_drum_chart_folder(
             source_audio=source_audio,
@@ -55,7 +90,8 @@ def cli() -> None:
 @click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Parent folder for the new song directory")
 @click.option("--bpm", type=float, default=None, help="BPM for chart timing (auto-detected if not provided)")
 @click.option("--from-midi", type=click.Path(path_type=Path, exists=False), default=None, help="Developer path: build drum notes from a MIDI drum file")
-@click.option("--backend", type=click.Choice(["fake"]), default="fake", help="Inference backend to use")
+@click.option("--backend", type=click.Choice(list(BACKENDS)), default="fake", help="Inference backend to use")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed logging output")
 def generate_cmd(
     audio: Path | None,
     song: str | None,
@@ -64,8 +100,10 @@ def generate_cmd(
     bpm: float | None,
     from_midi: Path | None,
     backend: str,
+    verbose: bool,
 ) -> None:
     """Generate a first-pass drum chart from a local audio file."""
+    _setup_logging(verbose)
     
     dest = output or Path.cwd()
     

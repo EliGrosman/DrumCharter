@@ -21,6 +21,11 @@ audio = [
 midi = [
     "pretty_midi>=0.2.10",
 ]
+ai = [
+    "adtof-pytorch @ git+https://github.com/xavriley/ADTOF-pytorch.git",
+    "pretty_midi>=0.2.10",
+    "torch",
+]
 
 
 [project.scripts]
