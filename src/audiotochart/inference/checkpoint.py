@@ -46,6 +46,11 @@ _VARIANT_TO_LABELS: dict[str, list[str]] = {
     "full5": FULL5_LABELS,
 }
 
+_VARIANT_TO_ARCH: dict[str, str] = {
+    "pro8": "adtof_frame_rnn",
+    "full5": "adtof_frame_rnn",
+}
+
 
 def register_architecture(name: str) -> Callable:
     """Decorator to register a model builder in the global registry.
@@ -164,11 +169,14 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
 
     arch_name = config.get("architecture")
     variant = config.get("variant")
+
+    if variant is not None and variant not in _VARIANT_TO_LABELS:
+        known = ", ".join(sorted(_VARIANT_TO_LABELS))
+        raise ModelLoadError(
+            f"Unsupported variant {variant!r}. Known variants: {known}"
+        )
+
     if arch_name is None and variant is not None:
-        _VARIANT_TO_ARCH = {
-            "pro8": "adtof_frame_rnn",
-            "full5": "adtof_frame_rnn",
-        }
         arch_name = _VARIANT_TO_ARCH.get(variant)
     if not arch_name:
         raise ModelLoadError(
