@@ -71,6 +71,31 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
+def _resolve_onset_decoder_dir(
+    *,
+    backend: str,
+    cfg: dict,
+    explicit_dir: Path | None,
+    disabled: bool,
+) -> Path | None:
+    if backend != "model" or disabled:
+        return None
+    if explicit_dir is not None:
+        return explicit_dir.expanduser().resolve()
+
+    configured = cfg.get("onset_decoder_dir")
+    if not configured:
+        return None
+    candidate = Path(configured).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+    logging.getLogger(__name__).debug(
+        "Onset decoder path %s does not exist; using baseline model output",
+        candidate,
+    )
+    return None
+
+
 def _run_generate(
     *,
     source_audio: Path,
@@ -85,6 +110,7 @@ def _run_generate(
     device: str | None = "auto",
     keep_workdir: bool = False,
     model_dir: Path | None = None,
+    onset_decoder_dir: Path | None = None,
     quantize_divisor: int | None = 16,
     tom_consistency: bool = False,
 ) -> Path:
@@ -97,7 +123,12 @@ def _run_generate(
         if model_dir is None:
             console.print("[red]Model backend requires --model-dir[/red]")
             raise SystemExit(1)
-        transcriber = transcriber_cls(model_dir=model_dir, device=device, tom_consistency=tom_consistency)
+        transcriber = transcriber_cls(
+            model_dir=model_dir,
+            device=device,
+            tom_consistency=tom_consistency,
+            onset_decoder_dir=onset_decoder_dir,
+        )
     else:
         transcriber = transcriber_cls()
 
@@ -182,6 +213,7 @@ def _run_interactive(cfg: dict) -> dict:
             "artist_name": artist_name,
             "backend": cfg.get("backend", "model"),
             "model_dir": Path(cfg["model_dir"]).expanduser().resolve() if cfg.get("model_dir") else None,
+            "onset_decoder_dir": Path(cfg["onset_decoder_dir"]).expanduser().resolve() if cfg.get("onset_decoder_dir") else None,
             "separate_drums": cfg.get("separate_drums", True),
             "device": cfg.get("device", "auto"),
             "quantize": cfg.get("quantize", "1/16"),
@@ -215,9 +247,16 @@ def _run_interactive(cfg: dict) -> dict:
     backend = Prompt.ask("Backend", choices=list(BACKENDS), default=cfg.get("backend", "model"))
 
     model_dir: str | None = cfg.get("model_dir")
+    onset_decoder_dir: str | None = cfg.get("onset_decoder_dir")
     if backend == "model":
         raw = Prompt.ask("Model directory", default=model_dir or "")
         model_dir = str(Path(raw).expanduser().resolve()) if raw else model_dir
+        raw_decoder = Prompt.ask("Onset decoder directory", default=onset_decoder_dir or "")
+        onset_decoder_dir = (
+            str(Path(raw_decoder).expanduser().resolve())
+            if raw_decoder
+            else onset_decoder_dir
+        )
 
     separate_drums = Confirm.ask("Separate drums with Demucs?", default=cfg.get("separate_drums", True))
     device = Prompt.ask("Device", choices=list(VALID_TORCH_DEVICES), default=cfg.get("device", "auto"))
@@ -237,6 +276,7 @@ def _run_interactive(cfg: dict) -> dict:
         "artist_name": artist_name,
         "backend": backend,
         "model_dir": Path(model_dir).expanduser().resolve() if model_dir else None,
+        "onset_decoder_dir": Path(onset_decoder_dir).expanduser().resolve() if onset_decoder_dir else None,
         "separate_drums": separate_drums,
         "device": device,
         "quantize": quantize,
@@ -284,6 +324,18 @@ def cli() -> None:
     default=None,
     help="Model directory for the 'model' backend (default: saved config or bundled model)",
 )
+@click.option(
+    "--onset-decoder-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Optional chord onset decoder directory (default: saved config if it exists)",
+)
+@click.option(
+    "--no-onset-decoder",
+    is_flag=True,
+    default=False,
+    help="Force baseline model output even if an onset decoder is configured",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed logging output")
 @click.option(
     "--quantize",
@@ -310,6 +362,8 @@ def generate_cmd(
     device: str | None,
     keep_workdir: bool,
     model_dir: Path | None,
+    onset_decoder_dir: Path | None,
+    no_onset_decoder: bool,
     verbose: bool,
     quantize: str,
     tom_consistency: bool,
@@ -324,6 +378,15 @@ def generate_cmd(
 
     if audio is None and song is None and artist is None:
         params = _run_interactive(user_config)
+        interactive_cfg = dict(user_config)
+        if params.get("onset_decoder_dir") is not None:
+            interactive_cfg["onset_decoder_dir"] = str(params["onset_decoder_dir"])
+        resolved_onset_decoder_dir = _resolve_onset_decoder_dir(
+            backend=params["backend"],
+            cfg=interactive_cfg,
+            explicit_dir=onset_decoder_dir,
+            disabled=no_onset_decoder,
+        )
 
         with ExitStack() as stack:
             if params["source_audio"] is None:
@@ -352,6 +415,7 @@ def generate_cmd(
                 device=params["device"],
                 keep_workdir=keep_workdir,
                 model_dir=params["model_dir"],
+                onset_decoder_dir=resolved_onset_decoder_dir,
                 quantize_divisor=QUANTIZE_CHOICES[params["quantize"]],
                 tom_consistency=params["tom_consistency"],
             )
@@ -361,6 +425,7 @@ def generate_cmd(
                 save_config({
                     "backend": params["backend"],
                     "model_dir": str(params["model_dir"]) if params["model_dir"] else "",
+                    "onset_decoder_dir": str(params["onset_decoder_dir"]) if params["onset_decoder_dir"] else "",
                     "device": params["device"],
                     "separate_drums": params["separate_drums"],
                     "quantize": params["quantize"],
@@ -387,6 +452,12 @@ def generate_cmd(
             model_dir = Path(cfg_dir)
     if separate_drums is None:
         separate_drums = user_config.get("separate_drums") if backend == "model" else (backend == "model")
+    resolved_onset_decoder_dir = _resolve_onset_decoder_dir(
+        backend=backend,
+        cfg=user_config,
+        explicit_dir=onset_decoder_dir,
+        disabled=no_onset_decoder,
+    )
 
     with ExitStack() as stack:
         if audio is None:
@@ -421,6 +492,7 @@ def generate_cmd(
                 device=device,
                 keep_workdir=keep_workdir,
                 model_dir=model_dir,
+                onset_decoder_dir=resolved_onset_decoder_dir,
                 quantize_divisor=QUANTIZE_CHOICES[quantize],
                 tom_consistency=tom_consistency,
             )
@@ -444,6 +516,7 @@ def generate_cmd(
             device=device,
             keep_workdir=keep_workdir,
             model_dir=model_dir,
+            onset_decoder_dir=resolved_onset_decoder_dir,
             quantize_divisor=QUANTIZE_CHOICES[quantize],
             tom_consistency=tom_consistency,
         )

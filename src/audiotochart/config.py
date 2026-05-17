@@ -11,6 +11,7 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_CONFIG: dict = {
     "backend": "model",
     "model_dir": str(_PACKAGE_ROOT / "models" / "finetuned"),
+    "onset_decoder_dir": str(_PACKAGE_ROOT / "models" / "onset_decoder"),
     "device": "auto",
     "separate_drums": True,
     "quantize": "1/16",

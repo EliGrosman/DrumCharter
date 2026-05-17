@@ -14,6 +14,12 @@ The default model directory is `models/finetuned`. This folder is gitignored
 while model-weight release details are being finalized, so place a local model
 bundle there before running the model backend.
 
+An optional chord onset decoder can live at `models/onset_decoder`. That
+directory is also gitignored and local-only for now. If it exists, the model
+backend uses it automatically to refine, reject, or expand same-frame chord
+events after baseline peak picking. Pass `--no-onset-decoder` to force baseline
+model output.
+
 Drum isolation via Demucs runs automatically for the `model` backend. No GPU is
 required; Demucs works on CPU, just slower.
 
@@ -63,6 +69,23 @@ CloneHero-ChartGen `pro8` model directories because the eight labels are known:
 Original `phase3_harmonix_b`-style run directories load without editing, but
 for this standalone repo the standard location is `models/finetuned`.
 
+## Optional Chord Onset Decoder
+
+AudioToChart currently supports the CloneHero-ChartGen chord decoder path, such
+as a `runs/chord_decoder_phase3b_physical_v1`-style bundle copied to:
+
+```text
+models/onset_decoder/
+  config.json
+  best.pt
+```
+
+The decoder is separate from model-weight release planning. Absence of
+`models/onset_decoder` is normal and does not block generation. An explicit
+`--onset-decoder-dir PATH` must contain a supported chord decoder bundle or the
+command fails with a clear error. Structure-conditioned decoder configs
+(`use_structure: true`) are not supported in this first standalone port.
+
 ## Development
 
 ```bash
@@ -78,12 +101,14 @@ For production-quality charts:
 uv run audiotochart generate ./song.wav \
     --song "Song Name" --artist "Artist Name" \
     --backend model --model-dir models/finetuned \
+    --onset-decoder-dir models/onset_decoder \
     --device auto --quantize 1/16 --tom-consistency -o ./out
 ```
 
 - `--device auto` uses CUDA when available, otherwise CPU.
 - `--quantize` controls grid snap; `1/16` is a good default; `none` disables snapping.
 - `--tom-consistency` attempts to fix improbable tom patterns.
+- `--no-onset-decoder` skips the optional chord decoder even when configured.
 - `--backend adtof` uses the stock ADTOF model (no fine-tuning, no separation needed).
 
 ### Fast Path (no AI dependencies)
@@ -112,4 +137,4 @@ uv run audiotochart generate ./song.wav --from-midi ./drums.mid --song "Test Son
 ## Not Included
 
 This standalone repo currently excludes training, dataset prep, evaluation
-dashboards, and the optional onset-decoder research path from CloneHero-ChartGen.
+dashboards, and non-chord or structure-conditioned onset decoder variants.

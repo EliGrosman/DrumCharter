@@ -15,6 +15,7 @@ def test_config_save_load_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     cfg = {
         "backend": "fake",
         "model_dir": "/some/path",
+        "onset_decoder_dir": "/some/decoder",
         "device": "cpu",
         "separate_drums": False,
         "quantize": "1/8",
@@ -84,6 +85,12 @@ def test_default_model_dir_resolves_to_package_path() -> None:
     p = Path(DEFAULT_CONFIG["model_dir"])
     assert p.parent.name == "models"
     assert p.is_dir()
+
+
+def test_default_onset_decoder_dir_resolves_to_models_path() -> None:
+    p = Path(DEFAULT_CONFIG["onset_decoder_dir"])
+    assert p.parent.name == "models"
+    assert p.name == "onset_decoder"
 
 
 def test_config_fallback_used_when_model_dir_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -46,11 +46,22 @@ class ModelTranscriber:
         *,
         device: str | None = None,
         tom_consistency: bool = False,
+        onset_decoder_dir: str | Path | None = None,
     ) -> None:
         self._model_dir = Path(model_dir) if model_dir else None
         self._device = device or "auto"
         self._tom_consistency = tom_consistency
+        self._onset_decoder_dir = Path(onset_decoder_dir) if onset_decoder_dir else None
         self._bundle: ModelBundle | None = None
+        self._onset_decoder_bundle: object | None = None
+
+    @property
+    def model_dir(self) -> Path | None:
+        return self._model_dir
+
+    @property
+    def onset_decoder_dir(self) -> Path | None:
+        return self._onset_decoder_dir
 
     def _ensure_loaded(self) -> ModelBundle:
         if self._bundle is not None:
@@ -169,6 +180,36 @@ class ModelTranscriber:
         onsets = [(t, c, conf) for t, c, conf in onsets if c not in gated_classes]
         log.info("Picked %d onsets across %d classes", len(onsets), len(labels))
 
+        # --- Optional chord-decoder refinement. ---
+        if self._onset_decoder_dir is not None:
+            if not _is_pro8_output(labels, variant):
+                raise ModelTranscriberError(
+                    "Onset decoder requires recognized pro8 model output"
+                )
+
+            decoder_bundle = self._ensure_onset_decoder_loaded(bundle)
+            if onsets:
+                from audiotochart.inference.onset_decoder import refine_chord_onsets
+
+                before = len(onsets)
+                old_pairs = {(round(t, 9), c) for t, c, _conf in onsets}
+                onsets = refine_chord_onsets(
+                    decoder_bundle,
+                    onsets,
+                    acts,
+                    spec,
+                    fps=fps,
+                    thresholds=thresholds,
+                )
+                new_pairs = {(round(t, 9), c) for t, c, _conf in onsets}
+                log.info(
+                    "[model] chord decoder: kept=%d/%d rejected=%d added=%d",
+                    len(onsets),
+                    before,
+                    len(old_pairs - new_pairs),
+                    len(new_pairs - old_pairs),
+                )
+
         # --- Tom consistency post-processing. ---
         if self._tom_consistency and _is_pro8_output(labels, variant) and onsets:
             from audiotochart.inference.tom_consistency import apply_tom_consistency
@@ -215,6 +256,20 @@ class ModelTranscriber:
             log.warning("No hits produced — thresholds may be too strict")
 
         return hits
+
+    def _ensure_onset_decoder_loaded(self, bundle: ModelBundle) -> object:
+        if self._onset_decoder_bundle is not None:
+            return self._onset_decoder_bundle
+        if self._onset_decoder_dir is None:
+            raise ModelTranscriberError("ModelTranscriber has no onset_decoder_dir configured")
+        from audiotochart.inference.onset_decoder import load_chord_decoder_bundle
+
+        self._onset_decoder_bundle = load_chord_decoder_bundle(
+            self._onset_decoder_dir,
+            base_bundle=bundle,
+            device=bundle.device,
+        )
+        return self._onset_decoder_bundle
 
 
 def _is_pro8_output(labels: list[str], variant: str) -> bool:

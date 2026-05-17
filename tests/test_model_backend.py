@@ -743,6 +743,8 @@ def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
     assert "cuda" in result.output
     assert "--tom-consistency" in result.output
     assert "--no-tom-consistency" in result.output
+    assert "--onset-decoder-dir" in result.output
+    assert "--no-onset-decoder" in result.output
     assert "separate-drums" in result.output
     assert "--no-separate-drums" in result.output
 
@@ -802,3 +804,149 @@ def test_cli_fake_backend_defaults_to_no_separation(tmp_path: Path) -> None:
 
     assert seen_separate is False
 
+
+def test_cli_explicit_onset_decoder_dir_passes_to_model(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from audiotochart.cli import cli
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = _make_model_dir(tmp_path)
+    decoder_dir = tmp_path / "decoder"
+
+    seen_decoder_dir = None
+
+    def _fake_generate(*, transcriber, **kwargs):
+        nonlocal seen_decoder_dir
+        seen_decoder_dir = transcriber.onset_decoder_dir
+        raise SystemExit(0)
+
+    runner = CliRunner()
+    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+        runner.invoke(cli, [
+            "generate", str(audio),
+            "--backend", "model",
+            "--model-dir", str(model_dir),
+            "--onset-decoder-dir", str(decoder_dir),
+            "--no-separate-drums",
+            "--song", "Test", "--artist", "Tester", "--bpm", "120",
+            "-o", str(tmp_path / "out"),
+        ])
+
+    assert seen_decoder_dir == decoder_dir.resolve()
+
+
+def test_cli_no_onset_decoder_overrides_configured_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from audiotochart.cli import cli
+    from audiotochart.config import save_config
+
+    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path / "cfg")
+    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "cfg" / "config.json")
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = _make_model_dir(tmp_path)
+    decoder_dir = tmp_path / "decoder"
+    decoder_dir.mkdir()
+    save_config({
+        "backend": "model",
+        "model_dir": str(model_dir),
+        "onset_decoder_dir": str(decoder_dir),
+    })
+
+    seen_decoder_dir = "unset"
+
+    def _fake_generate(*, transcriber, **kwargs):
+        nonlocal seen_decoder_dir
+        seen_decoder_dir = transcriber.onset_decoder_dir
+        raise SystemExit(0)
+
+    runner = CliRunner()
+    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+        runner.invoke(cli, [
+            "generate", str(audio),
+            "--backend", "model",
+            "--no-onset-decoder",
+            "--no-separate-drums",
+            "--song", "Test", "--artist", "Tester", "--bpm", "120",
+            "-o", str(tmp_path / "out"),
+        ])
+
+    assert seen_decoder_dir is None
+
+
+def test_cli_missing_default_onset_decoder_dir_does_not_block_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from audiotochart.cli import cli
+    from audiotochart.config import save_config
+
+    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path / "cfg")
+    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "cfg" / "config.json")
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = _make_model_dir(tmp_path)
+    save_config({
+        "backend": "model",
+        "model_dir": str(model_dir),
+        "onset_decoder_dir": str(tmp_path / "missing-decoder"),
+    })
+
+    seen_decoder_dir = "unset"
+
+    def _fake_generate(*, transcriber, **kwargs):
+        nonlocal seen_decoder_dir
+        seen_decoder_dir = transcriber.onset_decoder_dir
+        raise SystemExit(0)
+
+    runner = CliRunner()
+    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+        runner.invoke(cli, [
+            "generate", str(audio),
+            "--backend", "model",
+            "--no-separate-drums",
+            "--song", "Test", "--artist", "Tester", "--bpm", "120",
+            "-o", str(tmp_path / "out"),
+        ])
+
+    assert seen_decoder_dir is None
+
+
+def test_cli_explicit_bad_onset_decoder_path_is_clean(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from audiotochart.cli import cli
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
+    model_dir = _make_model_dir(
+        tmp_path,
+        num_classes=8,
+        labels=PRO8_LABELS,
+        n_mels=4,
+        sample_rate=4000,
+        hop_length=200,
+        thresholds=[999.0] * 8,
+    )
+    decoder_dir = tmp_path / "bad-decoder"
+    decoder_dir.mkdir()
+
+    runner = CliRunner()
+    result = runner.invoke(cli, [
+        "generate", str(audio),
+        "--backend", "model",
+        "--model-dir", str(model_dir),
+        "--onset-decoder-dir", str(decoder_dir),
+        "--no-separate-drums",
+        "--song", "Test", "--artist", "Tester", "--bpm", "120",
+        "-o", str(tmp_path / "out"),
+    ])
+
+    assert result.exit_code != 0
+    assert "Missing config.json" in result.output
+    assert "Traceback" not in result.output
