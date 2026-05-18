@@ -61,35 +61,14 @@ def _build_adtof_frame_rnn(config: dict) -> object:
     Requires the ``ai`` extra (``adtof_pytorch`` and ``torch``).
     The returned model outputs **logits** (pre-sigmoid).
     """
-    import torch.nn as nn
-    from adtof_pytorch import create_frame_rnn_model, calculate_n_bins
+    from audiotochart.adtof_model import build_adtof_frame_rnn, forward_adtof_logits
 
     num_classes: int = config.get("num_classes", 8)
-    n_bins = calculate_n_bins()
-    model = create_frame_rnn_model(n_bins)
-
-    in_features = model.output_layer.in_features
-    new_head = nn.Linear(in_features, num_classes)
-    nn.init.xavier_uniform_(new_head.weight)
-    nn.init.zeros_(new_head.bias)
-    model.output_layer = new_head
+    model = build_adtof_frame_rnn(num_classes=num_classes)
 
     # Wrap forward to return logits (ADTOF's built-in forward applies sigmoid).
-    import torch
-
-    def _logit_forward(self, x: torch.Tensor) -> torch.Tensor:
-        batch_size, time_steps, _freq_bins, _channels = x.shape
-        h = x.permute(0, 3, 1, 2)
-        for block in self.cnn_blocks:
-            h = block(h)
-        h = h.permute(0, 2, 3, 1)
-        features = h.shape[2] * h.shape[3]
-        h = h.reshape(batch_size, time_steps, features)
-        if getattr(self, "context_layer", None) is not None:
-            h = self.context_layer(h)
-        for gru in self.gru_layers:
-            h, _ = gru(h)
-        return self.output_layer(h)
+    def _logit_forward(self, x):
+        return forward_adtof_logits(self, x)
 
     model.forward = _logit_forward.__get__(model, type(model))
 

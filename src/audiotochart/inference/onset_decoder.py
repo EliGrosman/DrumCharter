@@ -763,15 +763,6 @@ def _causal_bool_mask(length: int, device: object) -> object:
 
 
 def _forward_encoder_features(model: object, x: object) -> object:
-    batch_size, time_steps, _freq_bins, _channels = x.shape
-    h = x.permute(0, 3, 1, 2)
-    for block in model.cnn_blocks:
-        h = block(h)
-    h = h.permute(0, 2, 3, 1)
-    features = h.shape[2] * h.shape[3]
-    h = h.reshape(batch_size, time_steps, features)
-    if getattr(model, "context_layer", None) is not None:
-        h = model.context_layer(h)
-    for gru in model.gru_layers:
-        h, _ = gru(h)
-    return h
+    from audiotochart.adtof_model import forward_adtof_features
+
+    return forward_adtof_features(model, x)

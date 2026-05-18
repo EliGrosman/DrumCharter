@@ -522,6 +522,153 @@ def generate_cmd(
         )
         console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
 
+# ---------------------------------------------------------------------------
+# Training CLI (optional: uv sync --extra training)
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def train() -> None:
+    """Training commands for fine-tuning drum transcription models."""
+
+
+@train.command()
+@click.argument("data_dirs", nargs=-1, type=click.Path(exists=True, path_type=Path), required=True)
+@click.option("--cache-dir", type=click.Path(path_type=Path), default=None, help="Cache directory (default: ~/.cache/audiotochart/training)")
+@click.option("--workers", "-j", type=int, default=6, help="Parallel workers")
+@click.option("--force", is_flag=True, help="Recompute cached files")
+def prepare(
+    data_dirs: tuple[Path, ...],
+    cache_dir: Path | None,
+    workers: int,
+    force: bool,
+) -> None:
+    """Discover Rock Band songs, extract archives, compute spectrograms and labels."""
+    import time
+    from audiotochart.training.pipeline import PipelineConfig, run_pipeline
+
+    if cache_dir is None:
+        cache_dir = Path.home() / ".cache" / "audiotochart" / "training"
+
+    config = PipelineConfig(cache_dir=cache_dir, process_workers=workers, force=force)
+    console.print(f"[bold]Source dirs:[/bold] {', '.join(str(d) for d in data_dirs)}")
+    console.print(f"[bold]Cache:[/bold] {cache_dir}")
+    start = time.monotonic()
+    result = run_pipeline(list(data_dirs), config)
+    elapsed = time.monotonic() - start
+    console.print(f"[bold green]Done in {elapsed:.0f}s![/bold green]")
+    console.print(f"  Processed: {result.processed} new, {result.skipped} cached, {result.failed} failed")
+    if result.errors:
+        console.print(f"[yellow]Errors ({len(result.errors)}):[/yellow]")
+        for err in result.errors[:10]:
+            console.print(f"  {err}")
+
+
+@train.command()
+@click.option("--cache-dir", type=click.Path(exists=True, path_type=Path), required=True, help="Prepared data cache directory")
+@click.option("--output-dir", type=click.Path(path_type=Path), required=True, help="Run output directory")
+@click.option("--batch-size", type=int, default=128)
+@click.option("--window-frames", type=int, default=None, help="Training window length in frames (default: TrainConfig.window_frames=100)")
+@click.option("--stride-frames", type=int, default=None, help="Window stride in frames (default: TrainConfig.stride_frames=50)")
+@click.option("--warmup-epochs", type=int, default=5)
+@click.option("--finetune-epochs", type=int, default=30)
+@click.option("--patience", type=int, default=8)
+@click.option("--seed", type=int, default=42)
+@click.option("--device", default="auto", help="PyTorch device")
+@click.option("--harmonix-only", is_flag=True, default=False, help="Train on Harmonix-charted songs only (exclude RBN)")
+@click.option("--no-amp", is_flag=True, help="Disable mixed-precision training")
+@click.option("--lr-scale", type=float, default=None, help="Scale Phase B learning rates")
+@click.option("--resume-from", type=click.Path(exists=True, path_type=Path), default=None, help="Resume from checkpoint")
+def frame(
+    cache_dir: Path,
+    output_dir: Path,
+    batch_size: int,
+    window_frames: int | None,
+    stride_frames: int | None,
+    warmup_epochs: int,
+    finetune_epochs: int,
+    patience: int,
+    seed: int,
+    device: str,
+    harmonix_only: bool,
+    no_amp: bool,
+    lr_scale: float | None,
+    resume_from: Path | None,
+) -> None:
+    """Fine-tune the ADTOF Frame_RNN on prepared Rock Band data."""
+    import logging
+    from audiotochart.training.config import TrainConfig
+    from audiotochart.training.train import run_training
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", force=True)
+    logging.getLogger("audiotochart").setLevel(logging.INFO)
+
+    resolved_device = device
+    if resolved_device == "auto":
+        import torch
+        resolved_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    cfg_kwargs = dict(
+        cache_dir=cache_dir, output_dir=output_dir, batch_size=batch_size,
+        warmup_epochs=warmup_epochs, finetune_epochs=finetune_epochs,
+        patience=patience, seed=seed, device=resolved_device, amp=not no_amp,
+        harmonix_only=harmonix_only,
+    )
+    if window_frames is not None:
+        cfg_kwargs["window_frames"] = window_frames
+    if stride_frames is not None:
+        cfg_kwargs["stride_frames"] = stride_frames
+    cfg = TrainConfig(**cfg_kwargs)
+    if lr_scale is not None:
+        cfg.finetune_lr *= lr_scale
+        cfg.finetune_lr_cnn_early *= lr_scale
+        cfg.finetune_lr_cnn_late *= lr_scale
+        cfg.finetune_lr_head *= lr_scale
+
+    console.print(f"[bold]Frame training[/bold]: variant=pro8  device={device}")
+    if harmonix_only:
+        console.print("[bold]Harmonix-only mode[/bold]: excluding RBN community charts")
+    best = run_training(cfg, resume_from=resume_from)
+    console.print(f"[bold green]Done.[/bold green] Best checkpoint: {best}")
+
+
+@train.command()
+@click.option("--run-dir", type=click.Path(exists=True, path_type=Path), required=True, help="Frame model run directory")
+@click.option("--cache-dir", type=click.Path(exists=True, path_type=Path), required=True, help="Prepared data cache directory")
+@click.option("--device", default="auto", help="PyTorch device")
+@click.option("--split", default="test", help="Eval split (val or test)")
+def eval_frame(
+    run_dir: Path,
+    cache_dir: Path,
+    device: str,
+    split: str,
+) -> None:
+    """Evaluate a trained frame model."""
+    import logging
+    from audiotochart.device import resolve_torch_device
+    from audiotochart.inference.checkpoint import load_model_bundle
+    from audiotochart.training.dataset import _load_entries, create_splits
+    from audiotochart.training.evaluate import CLASS_NAMES_8, evaluate, format_report
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", force=True)
+    dev = resolve_torch_device(device, purpose="eval-frame")
+    bundle = load_model_bundle(run_dir, device=dev)
+
+    entries = _load_entries(cache_dir)
+    if not entries:
+        console.print("[red]No entries found in cache[/red]")
+        return
+    _, val_entries, test_entries = create_splits(entries)
+    split_entries = val_entries if split == "val" else test_entries
+    console.print(f"[yellow]Eval {split}: {len(split_entries)} songs[/yellow]")
+
+    config = bundle.config
+    thresholds: list[float] = config.get("thresholds", [0.3] * 8)
+
+    report = evaluate(bundle.model, split_entries, thresholds, device=dev)
+    report.save(run_dir / f"eval_{split}.json")
+    console.print("\n" + format_report(report, class_names=CLASS_NAMES_8))
+
 
 if __name__ == "__main__":
     cli()

@@ -1,0 +1,21 @@
+{
+  "_doc": "Song hashes excluded from training/eval. Each entry was identified to be problematic in previous training/research. ",
+  "_generated_by": "scripts/detect_misalignment.py",
+  "songs": [
+    {"song_hash": "9ea3c79f6f1977f5", "song_name": "Neonfly - Ship With No Sails (2x Bass Pedal Expert+)",   "source_archive": "RBN 1221.7z",            "best_lag_ms":  30, "reason": "misaligned by  30ms; kick+snare F 0.021 -> 0.970"},
+    {"song_hash": "670e14296a6008e4", "song_name": "Dead by Wednesday - Pawns (2x Bass Pedal Expert+)",     "source_archive": "RBN 544.7z",             "best_lag_ms": -40, "reason": "misaligned by -40ms; kick+snare F 0.175 -> 0.937"},
+    {"song_hash": "e135110a5cb3c17b", "song_name": "Loverboy - Working for the Weekend",                   "source_archive": "Rock Band 3 DLC 298.7z", "best_lag_ms":  40, "reason": "misaligned by  40ms; kick+snare F 0.094 -> 0.922"},
+    {"song_hash": "91476ede6d721282", "song_name": "Scott Gehrett - Black Cloud",                          "source_archive": "RBN 1469.7z",            "best_lag_ms":  50, "reason": "misaligned by  50ms; kick+snare F 0.002 -> 0.910"},
+    {"song_hash": "ee83612cc1389bcc", "song_name": "Rishloo - Downhill (2x Bass Pedal Expert+)",           "source_archive": "RBN 1406.7z",            "best_lag_ms":  60, "reason": "misaligned by  60ms; kick+snare F 0.031 -> 0.885"},
+    {"song_hash": "7375adac52cdbd3f", "song_name": "Paul Henry Smith - Symphony No. 9 - Scherzo",          "source_archive": "RBN 1313.7z",            "best_lag_ms": -70, "reason": "misaligned by -70ms; kick+snare F 0.067 -> 0.831"},
+    {"song_hash": "58658b2fad112996", "song_name": "The Beatles - Wait",                                   "source_archive": "TBRB DLC 24.7z",         "best_lag_ms": -40, "reason": "misaligned by -40ms; kick+snare F 0.023 -> 0.826"},
+    {"song_hash": "c75239d02fcf562f", "song_name": "(Damn) This Desert Air - Ghost I Own",                 "source_archive": "RBN 2.7z",               "best_lag_ms":  50, "reason": "misaligned by  50ms; kick+snare F 0.081 -> 0.747"},
+    {"song_hash": "014e4f1bc69bbe28", "song_name": "Evile - Hundred Wrathful Deities (2x Bass Pedal Expert+)", "source_archive": "RBN 661.7z",          "best_lag_ms": -30, "reason": "misaligned by -30ms; kick+snare F 0.264 -> 0.622"},
+    {"song_hash": "6d6cab0409a33c8b", "song_name": "Foster the People - Helena Beat",                     "source_archive": "Rock Band 3 DLC 193.7z", "best_lag_ms": -50, "reason": "misaligned by -50ms; kick+snare F 0.000 -> 0.615"},
+    {"song_hash": "022099d09b45ef44", "song_name": "Ronald Jenkees - Guitar Sound",                       "source_archive": "RBN 1436.7z",            "best_lag_ms":  20, "reason": "misaligned by  20ms; kick+snare F 0.031 -> 0.972"},
+    {"song_hash": "084344ab75c176b5", "song_name": "Bojibian - Hallway",                                  "source_archive": "RBN 314.7z",             "best_lag_ms": -50, "reason": "misaligned by -50ms; kick+snare F 0.008 -> 0.971"},
+    {"song_hash": "07655361062f80ab", "song_name": "Chaotrope - Betrayed (2x Bass Pedal Expert+)",        "source_archive": "RBN 398.7z",             "best_lag_ms": -40, "reason": "misaligned by -40ms; kick+snare F 0.083 -> 0.940"},
+    {"song_hash": "6f20c3e5a643007b", "song_name": "Sunny Side Up - She's Rad",                           "source_archive": "RBN 1646.7z",            "best_lag_ms":  70, "reason": "misaligned by  70ms; kick+snare F 0.030 -> 0.933"},
+    {"song_hash": "b813ae66f68998cb", "song_name": "Mike Orlando - Dig It (2x Bass Pedal Expert+)",       "source_archive": "RBN 1153.7z",            "best_lag_ms": -50, "reason": "misaligned by -50ms; kick+snare F 0.134 -> 0.781"}
+  ]
+}
