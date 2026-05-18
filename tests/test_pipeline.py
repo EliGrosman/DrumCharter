@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import struct
 import wave
 from pathlib import Path
 from unittest.mock import patch
@@ -53,8 +52,8 @@ def test_generate_drum_chart_folder_writes_clone_hero_song_folder(tmp_path: Path
     # At 128 BPM, 1 beat = 60/128 = 0.46875s, 1 bar = 1.875s
     # 4 seconds = ~2.13 bars, so last eighth-note should be near tick ~4s worth
     expert_section = chart.split("[ExpertDrums]")[1].split("}")[0]
-    note_lines = [l.strip() for l in expert_section.strip().splitlines() if "= N" in l]
-    ticks = [int(l.split("=")[0].strip()) for l in note_lines]
+    note_lines = [line.strip() for line in expert_section.strip().splitlines() if "= N" in line]
+    ticks = [int(line.split("=")[0].strip()) for line in note_lines]
     # Resolution=192, 128 BPM: 1 tick = 0.46875/192 = 0.00244s
     # 4 seconds ≈ tick 1638
     max_tick = max(ticks) if ticks else 0

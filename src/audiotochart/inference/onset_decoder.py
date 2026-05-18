@@ -22,9 +22,9 @@ from audiotochart.onset_decoder_common import (
     build_chord_vocabulary,
     build_onset_conditioned_model,
     build_onset_feature_rows,
-    classes_to_mask,
+    classes_to_mask as classes_to_mask,
     mask_to_classes,
-    mask_to_name,
+    mask_to_name as mask_to_name,
 )
 
 log = logging.getLogger(__name__)
@@ -54,8 +54,6 @@ def load_chord_decoder_bundle(
     Supports checkpoints with a full ``model_state`` first, then falls back to
     ``decoder_state`` using the already-loaded base encoder.
     """
-
-    import torch
 
     decoder_dir = Path(decoder_dir)
     if not decoder_dir.is_dir():
@@ -101,6 +99,8 @@ def load_chord_decoder_bundle(
         config=config,
         vocab_size=vocab.vocab_size,
     )
+
+    import torch
 
     ckpt = torch.load(str(weights_path), map_location=device, weights_only=True)
     load_error: Exception | None = None

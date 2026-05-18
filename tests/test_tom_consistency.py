@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from audiotochart.inference.tom_consistency import apply_tom_consistency
 
@@ -52,7 +51,6 @@ def test_tom_consistency_few_anchors_bails_out() -> None:
 def test_tom_consistency_reassigns_low_confidence_tom() -> None:
     """Low-confidence tom hits outside the convention should be reassigned
     to the best-matching convention class."""
-    fps = 100
     T = 200
     acts = np.zeros((T, 8), dtype=np.float32)
 
@@ -139,7 +137,6 @@ def test_tom_consistency_preserves_fills() -> None:
 
 def test_tom_consistency_keeps_high_confidence_outliers() -> None:
     """High-confidence non-convention tom hits should be preserved."""
-    fps = 100
     T = 200
     acts = np.zeros((T, 8), dtype=np.float32)
 
@@ -166,7 +163,6 @@ def test_tom_consistency_keeps_high_confidence_outliers() -> None:
 def test_tom_consistency_all_three_classes_anchored_bails() -> None:
     """If anchors span all three tom classes, no convention can be
     established — bail out."""
-    fps = 100
     T = 200
     acts = np.zeros((T, 8), dtype=np.float32)
 

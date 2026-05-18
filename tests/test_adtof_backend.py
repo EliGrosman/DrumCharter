@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 from click.testing import CliRunner

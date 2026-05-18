@@ -9,7 +9,6 @@ from audiotochart.postprocess import (
     BeatGrid,
     build_quantize_grid,
     limit_simultaneous_hits,
-    make_beat_grid_from_bpm,
     snap_hits_to_grid,
 )
 

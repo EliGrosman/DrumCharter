@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import struct
 import wave
 from pathlib import Path
 
@@ -68,7 +67,6 @@ def test_detect_beat_grid_real_audio(tmp_path: Path) -> None:
     bpm = 120.0
     beat_interval = 60.0 / bpm
     duration = 4.0
-    t = np.arange(int(sr * duration)) / sr
 
     # Create a signal with rhythmic onset bursts at 120 BPM
     audio_data = np.zeros(int(sr * duration), dtype=np.float32)

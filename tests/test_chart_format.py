@@ -213,8 +213,8 @@ def test_notes_sorted_by_tick_then_note() -> None:
     )
     text = write_chart(doc)
     expert_section = text.split("[ExpertDrums]")[1].split("}")[0]
-    lines = [l.strip() for l in expert_section.strip().splitlines() if "= N" in l]
-    ticks = [int(l.split("=")[0].strip()) for l in lines]
+    lines = [line.strip() for line in expert_section.strip().splitlines() if "= N" in line]
+    ticks = [int(line.split("=")[0].strip()) for line in lines]
     assert ticks == sorted(ticks)
 
 
@@ -233,7 +233,7 @@ def test_duplicate_notes_deduplicated() -> None:
     )
     text = write_chart(doc)
     expert_section = text.split("[ExpertDrums]")[1].split("}")[0]
-    note_lines = [l.strip() for l in expert_section.strip().splitlines() if "= N" in l]
+    note_lines = [line.strip() for line in expert_section.strip().splitlines() if "= N" in line]
     # Should have 2 unique notes, not 3
     assert len(note_lines) == 2
 
@@ -251,9 +251,9 @@ def test_song_ini_newlines_in_values() -> None:
     """Newlines in values must be stripped."""
     ini = SongIni(name="Line\nBreak", loading_phrase="Hello\r\nWorld")
     lines = ini.to_lines()
-    name_line = [l for l in lines if l.startswith("name")][0]
+    name_line = [line for line in lines if line.startswith("name")][0]
     assert "\n" not in name_line
-    phrase_line = [l for l in lines if l.startswith("loading_phrase")][0]
+    phrase_line = [line for line in lines if line.startswith("loading_phrase")][0]
     assert "\n" not in phrase_line
     assert "\r" not in phrase_line
 

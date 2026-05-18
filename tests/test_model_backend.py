@@ -8,6 +8,8 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+pytest.importorskip("torch")
+
 from audiotochart.drums import DrumHit
 from audiotochart.inference.checkpoint import (
     ModelLoadError,
@@ -283,7 +285,6 @@ def test_transcriber_missing_audio_file(tmp_path: Path) -> None:
 
 def test_transcriber_returns_drumhits(tmp_path: Path) -> None:
     """With a tiny simple_cnn model, verify the hit list structure."""
-    import torch
 
     model_dir = _make_model_dir(
         tmp_path,
@@ -307,7 +308,6 @@ def test_transcriber_returns_drumhits(tmp_path: Path) -> None:
 
 def test_transcriber_label_mapping(tmp_path: Path) -> None:
     """Verify that class 0 maps to the first label, class 1 to second, etc."""
-    import torch
 
     custom_labels = ["crash", "ride"]
     model_dir = _make_model_dir(
@@ -436,7 +436,6 @@ def test_adtof_spectrogram_uses_training_time_normalization(monkeypatch, tmp_pat
 
 def test_confidence_gates_suppress_class_when_below_gate(tmp_path: Path) -> None:
     """A class whose max activation is below its confidence gate should yield zero hits."""
-    import torch
     model_dir = _make_model_dir(
         tmp_path,
         labels=["kick", "snare", "hihat"],
@@ -475,7 +474,6 @@ def test_confidence_gates_suppress_class_when_below_gate(tmp_path: Path) -> None
 
 def test_confidence_gates_absent_does_nothing(tmp_path: Path) -> None:
     """When no confidence_gates in config, all classes should produce hits as normal."""
-    import torch
     model_dir = _make_model_dir(
         tmp_path,
         num_classes=2,
@@ -509,7 +507,6 @@ def test_confidence_gates_absent_does_nothing(tmp_path: Path) -> None:
 
 def test_confidence_gates_partial_gating(tmp_path: Path) -> None:
     """Only specified gates are applied; classes without gates pass through."""
-    import torch
     model_dir = _make_model_dir(
         tmp_path,
         labels=["kick", "snare", "hihat"],

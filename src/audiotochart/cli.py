@@ -4,7 +4,6 @@ import logging
 import tempfile
 from contextlib import ExitStack
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import click
 from rich.console import Console
@@ -18,9 +17,6 @@ from audiotochart.inference.fake import FakeTranscriber
 from audiotochart.pipeline import STAGES, generate_drum_chart_folder
 from audiotochart.postprocess import QUANTIZE_CHOICES
 from audiotochart.separation import SeparationError
-
-if TYPE_CHECKING:
-    from audiotochart.inference.base import DrumTranscriber
 
 console = Console()
 

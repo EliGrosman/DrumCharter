@@ -5,6 +5,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
+
+pytest.importorskip("torch")
 import torch
 
 from audiotochart.training.onset_precompute import (

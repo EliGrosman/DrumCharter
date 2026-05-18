@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytest.importorskip("torch")
+
 from audiotochart.training.chord_hybrid_eval import (
     PreparedChordHybridSong,
     evaluate_prepared_chord_hybrid,

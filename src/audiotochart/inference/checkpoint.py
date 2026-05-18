@@ -29,7 +29,6 @@ PRO8_ARCHITECTURE = "adtof_frame_rnn"
 def _build_simple_cnn(config: dict) -> object:
     import torch.nn as nn
 
-    n_mels: int = config.get("n_mels", 84)
     num_classes: int = config.get("num_classes", 8)
     hidden: int = config.get("hidden_dim", 8)
 
@@ -123,8 +122,6 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
     Supported architecture names are ``"simple_cnn"`` for tests and
     ``"adtof_frame_rnn"`` for the built-in pro8 model.
     """
-    import torch
-
     model_dir = Path(model_dir)
     if not model_dir.is_dir():
         raise ModelLoadError(f"Model directory not found: {model_dir}")
@@ -231,6 +228,8 @@ def load_model_bundle(model_dir: Path, *, device: str = "cpu") -> ModelBundle:
         config.get("n_mels", 84),
     )
     model = _build_model_for_architecture(arch_name, config)
+
+    import torch
 
     state = torch.load(str(weights_path), map_location=device, weights_only=True)
     if isinstance(state, dict) and "model_state" in state:

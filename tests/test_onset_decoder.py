@@ -137,7 +137,7 @@ def test_decoder_loader_missing_config_and_best_are_clean(tmp_path: Path) -> Non
 
 
 def test_decoder_loader_accepts_training_decoder_state(monkeypatch, tmp_path: Path) -> None:
-    import torch
+    torch = pytest.importorskip("torch")
     import torch.nn as nn
 
     from audiotochart.onset_decoder_common import build_onset_conditioned_model
@@ -177,7 +177,7 @@ def test_decoder_loader_accepts_training_decoder_state(monkeypatch, tmp_path: Pa
 
 
 def test_model_transcriber_applies_decoder_before_tom_consistency(tmp_path: Path) -> None:
-    import torch
+    torch = pytest.importorskip("torch")
 
     audio = _make_wav(tmp_path)
     spec = np.zeros((4, 4, 1), dtype=np.float32)

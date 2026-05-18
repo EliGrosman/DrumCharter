@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from audiotochart.chart.drum_vocab import (
-    CYMBAL_BLUE,
+    BLUE_PAD as BLUE_PAD,
+    CYMBAL_BLUE as CYMBAL_BLUE,
     CYMBAL_BY_PAD,
-    CYMBAL_GREEN,
+    CYMBAL_GREEN as CYMBAL_GREEN,
     CYMBAL_MODIFIERS,
-    CYMBAL_YELLOW,
+    CYMBAL_YELLOW as CYMBAL_YELLOW,
+    GREEN_PAD as GREEN_PAD,
     KICK,
     PAD_BY_CYMBAL,
     PAD_NOTES,
     SNARE,
     YELLOW_PAD,
-    BLUE_PAD,
-    GREEN_PAD,
 )
 from audiotochart.chart.format import ChartDocument, DrumDifficulty, DrumNote
 

@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-import struct
 import wave
 from pathlib import Path
 from unittest.mock import Mock
 
-import pytest
 from click.testing import CliRunner
 
 from audiotochart.cli import cli
 from audiotochart.drums import DrumHit
 from audiotochart.inference.base import DrumTranscriber
 from audiotochart.inference.fake import FakeTranscriber
-from audiotochart.chart.convert import hits_to_chart_document
-from audiotochart.chart.format import ChartDocument, DrumDifficulty, SongMetadata
 
 
 def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:
