@@ -836,6 +836,66 @@ def test_cli_explicit_onset_decoder_dir_passes_to_model(tmp_path: Path) -> None:
     assert seen_decoder_dir == decoder_dir.resolve()
 
 
+def test_interactive_generate_confirms_before_decoder_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from audiotochart.cli import _run_interactive
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = tmp_path / "model"
+    decoder_dir = tmp_path / "decoder"
+    output_dir = tmp_path / "out"
+    events: list[str] = []
+
+    def _prompt(cls, prompt: str, *args, **kwargs) -> str:
+        events.append(f"prompt:{prompt}")
+        responses = {
+            "Select": "1",
+            "Audio file path": str(audio),
+            "Song name": "Song",
+            "Artist name": "Artist",
+            "Backend": "model",
+            "Model directory": str(model_dir),
+            "Onset decoder directory": str(decoder_dir),
+            "Device": "auto",
+            "Quantization": "1/16",
+            "Output directory": str(output_dir),
+        }
+        return responses[prompt]
+
+    def _confirm(cls, prompt: str, *args, **kwargs) -> bool:
+        events.append(f"confirm:{prompt}")
+        if prompt == "Load saved settings from last run?":
+            return False
+        if prompt == "Use onset decoder?":
+            return True
+        if prompt == "Separate drums with Demucs?":
+            return False
+        if prompt == "Enable tom consistency?":
+            return False
+        raise AssertionError(f"Unexpected confirm prompt: {prompt}")
+
+    monkeypatch.setattr("audiotochart.cli.config_exists", lambda: True)
+    monkeypatch.setattr("audiotochart.cli.Prompt.ask", classmethod(_prompt))
+    monkeypatch.setattr("audiotochart.cli.Confirm.ask", classmethod(_confirm))
+
+    params = _run_interactive({
+        "backend": "model",
+        "model_dir": "",
+        "onset_decoder_dir": "",
+        "separate_drums": True,
+        "device": "auto",
+        "quantize": "1/16",
+        "tom_consistency": False,
+        "output_dir": ".",
+    })
+
+    assert events.index("confirm:Use onset decoder?") < events.index("prompt:Onset decoder directory")
+    assert params["onset_decoder_dir"] == decoder_dir.resolve()
+    assert params["_use_onset_decoder"] is True
+
+
 def test_cli_no_onset_decoder_overrides_configured_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

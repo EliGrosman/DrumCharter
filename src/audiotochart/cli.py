@@ -248,15 +248,23 @@ def _run_interactive(cfg: dict) -> dict:
 
     model_dir: str | None = cfg.get("model_dir")
     onset_decoder_dir: str | None = cfg.get("onset_decoder_dir")
+    use_onset_decoder = False
     if backend == "model":
         raw = Prompt.ask("Model directory", default=model_dir or "")
         model_dir = str(Path(raw).expanduser().resolve()) if raw else model_dir
-        raw_decoder = Prompt.ask("Onset decoder directory", default=onset_decoder_dir or "")
-        onset_decoder_dir = (
-            str(Path(raw_decoder).expanduser().resolve())
-            if raw_decoder
-            else onset_decoder_dir
+        use_onset_decoder = Confirm.ask(
+            "Use onset decoder?",
+            default=bool(onset_decoder_dir),
         )
+        if use_onset_decoder:
+            raw_decoder = Prompt.ask("Onset decoder directory", default=onset_decoder_dir or "")
+            onset_decoder_dir = (
+                str(Path(raw_decoder).expanduser().resolve())
+                if raw_decoder
+                else onset_decoder_dir
+            )
+        else:
+            onset_decoder_dir = None
 
     separate_drums = Confirm.ask("Separate drums with Demucs?", default=cfg.get("separate_drums", True))
     device = Prompt.ask("Device", choices=list(VALID_TORCH_DEVICES), default=cfg.get("device", "auto"))
@@ -282,6 +290,7 @@ def _run_interactive(cfg: dict) -> dict:
         "quantize": quantize,
         "tom_consistency": tom_consistency,
         "output_dir": output_dir,
+        "_use_onset_decoder": use_onset_decoder,
         "_settings_changed": True,
     }
 
@@ -381,11 +390,13 @@ def generate_cmd(
         interactive_cfg = dict(user_config)
         if params.get("onset_decoder_dir") is not None:
             interactive_cfg["onset_decoder_dir"] = str(params["onset_decoder_dir"])
+        elif params.get("_use_onset_decoder") is False:
+            interactive_cfg.pop("onset_decoder_dir", None)
         resolved_onset_decoder_dir = _resolve_onset_decoder_dir(
             backend=params["backend"],
             cfg=interactive_cfg,
             explicit_dir=onset_decoder_dir,
-            disabled=no_onset_decoder,
+            disabled=no_onset_decoder or params.get("_use_onset_decoder") is False,
         )
 
         with ExitStack() as stack:
