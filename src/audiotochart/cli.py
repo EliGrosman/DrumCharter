@@ -12,7 +12,7 @@ from rich.prompt import Confirm, Prompt
 from rich.status import Status
 
 from audiotochart.config import DEFAULT_CHARTER, config_exists, load_config, save_config
-from audiotochart.device import VALID_TORCH_DEVICES
+from audiotochart.device import VALID_TORCH_DEVICES, resolve_torch_device
 from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
 from audiotochart.pipeline import STAGES, generate_drum_chart_folder
@@ -640,6 +640,150 @@ def frame(
     if harmonix_only:
         console.print("[bold]Harmonix-only mode[/bold]: excluding RBN community charts")
     best = run_training(cfg, resume_from=resume_from)
+    console.print(f"[bold green]Done.[/bold green] Best checkpoint: {best}")
+
+
+@train.command("precompute-onsets")
+@click.option("--cache-dir", type=click.Path(exists=True, path_type=Path), required=True, help="Prepared data cache directory")
+@click.option("--frame-model-dir", type=click.Path(exists=True, path_type=Path), required=True, help="Trained frame model directory")
+@click.option("--output-dir", type=click.Path(path_type=Path), required=True, help="Directory for per-song onset .npz files")
+@click.option("--device", type=click.Choice(VALID_TORCH_DEVICES), default="auto", help="PyTorch device")
+@click.option("--harmonix-only", is_flag=True, default=False, help="Use Harmonix-charted songs only")
+@click.option("--force", is_flag=True, help="Recompute files that already exist")
+@click.option("--max-chunk-frames", type=int, default=2000, help="Frame-model inference chunk size")
+def precompute_onsets(
+    cache_dir: Path,
+    frame_model_dir: Path,
+    output_dir: Path,
+    device: str,
+    harmonix_only: bool,
+    force: bool,
+    max_chunk_frames: int,
+) -> None:
+    """Precompute frame-model candidate onsets for onset-decoder training."""
+    import logging
+    from audiotochart.training.onset_precompute import (
+        OnsetPrecomputeConfig,
+        run_precompute_onsets,
+    )
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", force=True)
+    resolved_device = resolve_torch_device(device, purpose="precompute-onsets")
+    cfg = OnsetPrecomputeConfig(
+        cache_dir=cache_dir,
+        frame_model_dir=frame_model_dir,
+        output_dir=output_dir,
+        device=resolved_device,
+        harmonix_only=harmonix_only,
+        force=force,
+        max_chunk_frames=max_chunk_frames,
+    )
+    console.print(f"[bold]Precompute onsets[/bold]: device={resolved_device}")
+    result = run_precompute_onsets(cfg)
+    console.print(
+        "[bold green]Done.[/bold green] "
+        f"written={result.written} skipped={result.skipped} failed={result.failed}"
+    )
+    if result.failed:
+        raise SystemExit(1)
+
+
+@train.command("onset-decoder")
+@click.option("--cache-dir", type=click.Path(exists=True, path_type=Path), required=True, help="Prepared data cache directory")
+@click.option("--frame-model-dir", type=click.Path(exists=True, path_type=Path), required=True, help="Trained frame model directory")
+@click.option("--output-dir", type=click.Path(path_type=Path), required=True, help="Run output directory")
+@click.option("--onset-dir", type=click.Path(exists=True, path_type=Path), default=None, help="Precomputed candidate onset directory")
+@click.option("--batch-size", type=int, default=32)
+@click.option("--num-workers", type=int, default=4)
+@click.option("--window-frames", type=int, default=1000)
+@click.option("--stride-frames", type=int, default=500)
+@click.option("--max-onsets", type=int, default=256)
+@click.option("--epochs", type=int, default=20)
+@click.option("--patience", type=int, default=5)
+@click.option("--lr", type=float, default=3e-4)
+@click.option("--weight-decay", type=float, default=1e-4)
+@click.option("--d-model", type=int, default=128)
+@click.option("--n-heads", type=int, default=4)
+@click.option("--n-layers", type=int, default=4)
+@click.option("--d-ff", type=int, default=512)
+@click.option("--dropout", type=float, default=0.1)
+@click.option("--label-smoothing", type=float, default=0.1)
+@click.option("--tp-only", is_flag=True, help="Only train on predicted groups matched to ground truth")
+@click.option("--no-null-token", is_flag=True, help="Do not train NULL/reject targets for unmatched predictions")
+@click.option("--blocklist-policy", type=click.Choice(["none", "kick_two_cymbals_no_snare"]), default="none")
+@click.option("--device", type=click.Choice(VALID_TORCH_DEVICES), default="auto", help="PyTorch device")
+@click.option("--harmonix-only", is_flag=True, default=False, help="Use Harmonix-charted songs only")
+@click.option("--no-amp", is_flag=True, help="Disable mixed-precision training")
+@click.option("--seed", type=int, default=42)
+def onset_decoder(
+    cache_dir: Path,
+    frame_model_dir: Path,
+    output_dir: Path,
+    onset_dir: Path | None,
+    batch_size: int,
+    num_workers: int,
+    window_frames: int,
+    stride_frames: int,
+    max_onsets: int,
+    epochs: int,
+    patience: int,
+    lr: float,
+    weight_decay: float,
+    d_model: int,
+    n_heads: int,
+    n_layers: int,
+    d_ff: int,
+    dropout: float,
+    label_smoothing: float,
+    tp_only: bool,
+    no_null_token: bool,
+    blocklist_policy: str,
+    device: str,
+    harmonix_only: bool,
+    no_amp: bool,
+    seed: int,
+) -> None:
+    """Train the chord-token onset decoder used by generate."""
+    import logging
+    from audiotochart.training.onset_decoder import (
+        ChordDecoderTrainConfig,
+        run_onset_decoder_training,
+    )
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", force=True)
+    resolved_device = resolve_torch_device(device, purpose="onset-decoder training")
+    cfg = ChordDecoderTrainConfig(
+        cache_dir=cache_dir,
+        frame_model_dir=frame_model_dir,
+        output_dir=output_dir,
+        onset_dir=onset_dir,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        window_frames=window_frames,
+        stride_frames=stride_frames,
+        max_onsets=max_onsets,
+        epochs=epochs,
+        patience=patience,
+        lr=lr,
+        weight_decay=weight_decay,
+        d_model=d_model,
+        n_heads=n_heads,
+        n_layers=n_layers,
+        d_ff=d_ff,
+        dropout=dropout,
+        label_smoothing=label_smoothing,
+        tp_only=tp_only,
+        use_null_token=not no_null_token,
+        blocklist_policy=blocklist_policy,
+        device=resolved_device,
+        harmonix_only=harmonix_only,
+        amp=not no_amp,
+        seed=seed,
+    )
+    console.print(f"[bold]Onset decoder training[/bold]: device={resolved_device}")
+    if onset_dir is not None:
+        console.print(f"[bold]Candidate onsets:[/bold] {onset_dir}")
+    best = run_onset_decoder_training(cfg)
     console.print(f"[bold green]Done.[/bold green] Best checkpoint: {best}")
 
 

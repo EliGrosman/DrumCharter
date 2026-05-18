@@ -9,6 +9,7 @@ from audiotochart.training.rb_midi import (
 from audiotochart.training.discovery import RBSong, discover_songs
 from audiotochart.training.labels import onsets_to_label_matrix
 from audiotochart.training.dataset import (
+    ChordConditionedDataset,
     DrumTranscriptionDataset,
     SongEntry,
     create_datasets,
@@ -17,6 +18,7 @@ from audiotochart.training.dataset import (
 
 __all__ = [
     "CLASS_NAMES",
+    "ChordConditionedDataset",
     "NUM_CLASSES",
     "DrumOnset",
     "DrumTranscriptionDataset",

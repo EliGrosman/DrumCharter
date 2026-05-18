@@ -749,6 +749,18 @@ def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
     assert "--no-separate-drums" in result.output
 
 
+def test_cli_train_help_shows_onset_decoder_commands() -> None:
+    from click.testing import CliRunner
+    from audiotochart.cli import cli
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["train", "--help"])
+
+    assert result.exit_code == 0
+    assert "precompute-onsets" in result.output
+    assert "onset-decoder" in result.output
+
+
 def test_cli_model_backend_defaults_to_separation(monkeypatch, tmp_path: Path) -> None:
     """Model backend should default to separate_drums=True."""
     from click.testing import CliRunner

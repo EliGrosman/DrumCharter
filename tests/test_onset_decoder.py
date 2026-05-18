@@ -136,6 +136,46 @@ def test_decoder_loader_missing_config_and_best_are_clean(tmp_path: Path) -> Non
         )
 
 
+def test_decoder_loader_accepts_training_decoder_state(monkeypatch, tmp_path: Path) -> None:
+    import torch
+    import torch.nn as nn
+
+    from audiotochart.onset_decoder_common import build_onset_conditioned_model
+
+    class FakeEncoder(nn.Module):
+        pass
+
+    decoder_dir = tmp_path / "decoder"
+    decoder_dir.mkdir()
+    config = {
+        "chord_masks": [1],
+        "vocab_size": 4,
+        "encoder_dim": 4,
+        "d_model": 8,
+        "n_heads": 2,
+        "n_layers": 1,
+        "d_ff": 16,
+        "use_onset_features": True,
+        "onset_feature_dim": 18,
+    }
+    (decoder_dir / "config.json").write_text(json.dumps(config))
+    model = build_onset_conditioned_model(FakeEncoder(), config=config, vocab_size=4)
+    torch.save({"decoder_state": model.decoder.state_dict(), "config": config}, decoder_dir / "best.pt")
+    monkeypatch.setattr(
+        "audiotochart.inference.onset_decoder._build_decoder_encoder",
+        FakeEncoder,
+    )
+
+    bundle = load_chord_decoder_bundle(
+        decoder_dir,
+        base_bundle=ModelBundle(model=FakeEncoder(), labels=PRO8_LABELS),
+        device="cpu",
+    )
+
+    assert bundle.vocab.vocab_size == 4
+    assert bundle.model.training is False
+
+
 def test_model_transcriber_applies_decoder_before_tom_consistency(tmp_path: Path) -> None:
     import torch
 
