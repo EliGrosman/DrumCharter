@@ -708,6 +708,9 @@ def precompute_onsets(
 @click.option("--d-ff", type=int, default=512)
 @click.option("--dropout", type=float, default=0.1)
 @click.option("--label-smoothing", type=float, default=0.1)
+@click.option("--selection-metric", type=click.Choice(["val_loss", "hybrid_macro_f", "hybrid_cqs"]), default="hybrid_cqs")
+@click.option("--hybrid-eval-songs", type=int, default=50, help="Validation songs for hybrid checkpoint selection")
+@click.option("--hybrid-eval-every", type=int, default=1, help="Run hybrid validation every N epochs")
 @click.option("--tp-only", is_flag=True, help="Only train on predicted groups matched to ground truth")
 @click.option("--no-null-token", is_flag=True, help="Do not train NULL/reject targets for unmatched predictions")
 @click.option("--blocklist-policy", type=click.Choice(["none", "kick_two_cymbals_no_snare"]), default="none")
@@ -735,6 +738,9 @@ def onset_decoder(
     d_ff: int,
     dropout: float,
     label_smoothing: float,
+    selection_metric: str,
+    hybrid_eval_songs: int,
+    hybrid_eval_every: int,
     tp_only: bool,
     no_null_token: bool,
     blocklist_policy: str,
@@ -772,6 +778,9 @@ def onset_decoder(
         d_ff=d_ff,
         dropout=dropout,
         label_smoothing=label_smoothing,
+        selection_metric=selection_metric,
+        hybrid_eval_songs=hybrid_eval_songs,
+        hybrid_eval_every=hybrid_eval_every,
         tp_only=tp_only,
         use_null_token=not no_null_token,
         blocklist_policy=blocklist_policy,

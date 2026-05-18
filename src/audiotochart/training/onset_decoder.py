@@ -56,6 +56,9 @@ class ChordDecoderTrainConfig:
     epochs: int = 20
     patience: int = 5
     label_smoothing: float = 0.1
+    selection_metric: str = "hybrid_cqs"
+    hybrid_eval_songs: int = 50
+    hybrid_eval_every: int = 1
 
     device: str = "cuda"
     amp: bool = True
@@ -93,6 +96,14 @@ def _seed_everything(seed: int) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+
+def _selection_is_better(metric: str, current: float, best: float) -> bool:
+    if metric == "val_loss":
+        return current < best
+    if metric in {"hybrid_macro_f", "hybrid_cqs"}:
+        return current > best
+    raise ValueError(f"Unsupported selection metric: {metric}")
 
 
 @torch.no_grad()
@@ -147,8 +158,16 @@ def validate_chord_decoder(
 
 def run_onset_decoder_training(cfg: ChordDecoderTrainConfig) -> Path:
     from audiotochart.inference.checkpoint import load_model_bundle
+    from audiotochart.training.chord_hybrid_eval import (
+        evaluate_prepared_chord_hybrid,
+        hybrid_selection_value,
+        prepare_chord_hybrid_eval_songs,
+    )
 
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
+    if cfg.selection_metric not in {"val_loss", "hybrid_macro_f", "hybrid_cqs"}:
+        raise ValueError(f"Unsupported selection metric: {cfg.selection_metric}")
+
     config_payload = _config_payload(cfg)
     (cfg.output_dir / "config.json").write_text(json.dumps(config_payload, indent=2))
     log_path = cfg.output_dir / "train_log.jsonl"
@@ -231,6 +250,32 @@ def run_onset_decoder_training(cfg: ChordDecoderTrainConfig) -> Path:
     total_params, trainable_params = count_parameters(model)
     log.info("Onset decoder model: %d total params, %d trainable", total_params, trainable_params)
 
+    prepared_hybrid_songs = []
+    if cfg.selection_metric != "val_loss":
+        if cfg.hybrid_eval_songs <= 0:
+            raise ValueError(
+                "Hybrid checkpoint selection requires hybrid_eval_songs > 0; "
+                "use selection_metric='val_loss' to skip hybrid validation"
+            )
+        thresholds = base_bundle.config.get("thresholds")
+        if thresholds is None:
+            raise FileNotFoundError(
+                "Hybrid checkpoint selection requires thresholds in the frame model "
+                f"bundle. Expected thresholds.json next to {cfg.frame_model_dir}."
+            )
+        confidence_gates = base_bundle.config.get("confidence_gates")
+        prepared_hybrid_songs = prepare_chord_hybrid_eval_songs(
+            base_bundle.model,
+            val_entries,
+            thresholds=list(thresholds),
+            confidence_gates=list(confidence_gates) if confidence_gates is not None else None,
+            device=cfg.device,
+            max_songs=cfg.hybrid_eval_songs,
+        )
+        if not prepared_hybrid_songs:
+            raise ValueError("No songs prepared for hybrid onset-decoder validation")
+        log.info("Prepared %d songs for chord-hybrid validation", len(prepared_hybrid_songs))
+
     optimizer = torch.optim.AdamW(
         [param for param in model.parameters() if param.requires_grad],
         lr=cfg.lr,
@@ -245,6 +290,7 @@ def run_onset_decoder_training(cfg: ChordDecoderTrainConfig) -> Path:
     scaler = torch.amp.GradScaler("cuda") if use_amp else None
 
     best_val_loss = float("inf")
+    best_selection_value = float("inf") if cfg.selection_metric == "val_loss" else float("-inf")
     best_epoch = -1
     epochs_since_best = 0
 
@@ -313,6 +359,27 @@ def run_onset_decoder_training(cfg: ChordDecoderTrainConfig) -> Path:
         )
         elapsed = time.monotonic() - start_time
         lr_now = scheduler.get_last_lr()[0]
+        hybrid_report = None
+        if prepared_hybrid_songs and epoch % max(1, cfg.hybrid_eval_every) == 0:
+            hybrid_report = evaluate_prepared_chord_hybrid(
+                model,
+                prepared_hybrid_songs,
+                device=device,
+                window_frames=cfg.window_frames,
+                stride_frames=cfg.stride_frames,
+                max_onsets=cfg.max_onsets,
+                vocab=vocab,
+            )
+            log.info(
+                "Chord hybrid val: F %.4f -> %.4f (%+.4f)  CQS %.4f -> %.4f (%+.4f)",
+                hybrid_report.baseline_macro_f,
+                hybrid_report.hybrid_macro_f,
+                hybrid_report.hybrid_macro_f - hybrid_report.baseline_macro_f,
+                hybrid_report.baseline_cqs,
+                hybrid_report.hybrid_cqs,
+                hybrid_report.hybrid_cqs - hybrid_report.baseline_cqs,
+            )
+
         record = {
             "epoch": epoch,
             "train_loss": train_loss,
@@ -322,6 +389,15 @@ def run_onset_decoder_training(cfg: ChordDecoderTrainConfig) -> Path:
             "lr": lr_now,
             "elapsed_s": elapsed,
         }
+        if hybrid_report is not None:
+            record.update(
+                {
+                    "baseline_macro_f": hybrid_report.baseline_macro_f,
+                    "hybrid_macro_f": hybrid_report.hybrid_macro_f,
+                    "baseline_cqs": hybrid_report.baseline_cqs,
+                    "hybrid_cqs": hybrid_report.hybrid_cqs,
+                }
+            )
         with log_path.open("a") as f:
             f.write(json.dumps(record) + "\n")
         log.info(
@@ -342,14 +418,37 @@ def run_onset_decoder_training(cfg: ChordDecoderTrainConfig) -> Path:
             "val_accuracy": val_accuracy,
             "config": config_payload,
         }
+        if hybrid_report is not None:
+            payload["hybrid_eval"] = hybrid_report.as_dict()
         torch.save(payload, last_path)
-        if val_loss < best_val_loss:
+
+        current_selection_value = None
+        if cfg.selection_metric == "val_loss":
+            current_selection_value = val_loss
+        elif hybrid_report is not None:
+            current_selection_value = hybrid_selection_value(hybrid_report, cfg.selection_metric)
+
+        improved = (
+            current_selection_value is not None
+            and _selection_is_better(
+                cfg.selection_metric,
+                float(current_selection_value),
+                best_selection_value,
+            )
+        )
+        if improved:
             best_val_loss = val_loss
+            best_selection_value = float(current_selection_value)
             best_epoch = epoch
             epochs_since_best = 0
             torch.save(payload, best_path)
-            log.info("New best onset decoder at epoch %d (val_loss=%.4f)", epoch, val_loss)
-        else:
+            log.info(
+                "New best onset decoder at epoch %d (%s=%.4f)",
+                epoch,
+                cfg.selection_metric,
+                best_selection_value,
+            )
+        elif current_selection_value is not None:
             epochs_since_best += 1
 
         if epochs_since_best >= cfg.patience:
@@ -359,4 +458,28 @@ def run_onset_decoder_training(cfg: ChordDecoderTrainConfig) -> Path:
     if not best_path.exists():
         log.warning("No best.pt saved; using last.pt")
         return last_path
+    if prepared_hybrid_songs:
+        best_ckpt = torch.load(str(best_path), map_location=device, weights_only=True)
+        model.decoder.load_state_dict(best_ckpt["decoder_state"], strict=True)
+        final_report = evaluate_prepared_chord_hybrid(
+            model,
+            prepared_hybrid_songs,
+            device=device,
+            window_frames=cfg.window_frames,
+            stride_frames=cfg.stride_frames,
+            max_onsets=cfg.max_onsets,
+            vocab=vocab,
+        )
+        (cfg.output_dir / "eval_val_chord_hybrid.json").write_text(
+            json.dumps(
+                {
+                    **final_report.as_dict(),
+                    "best_epoch": best_epoch,
+                    "best_val_loss": best_val_loss,
+                    "best_selection_value": best_selection_value,
+                    "selection_metric": cfg.selection_metric,
+                },
+                indent=2,
+            )
+        )
     return best_path

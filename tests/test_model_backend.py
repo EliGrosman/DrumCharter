@@ -761,6 +761,20 @@ def test_cli_train_help_shows_onset_decoder_commands() -> None:
     assert "onset-decoder" in result.output
 
 
+def test_cli_train_onset_decoder_help_shows_hybrid_selection_options() -> None:
+    from click.testing import CliRunner
+    from audiotochart.cli import cli
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["train", "onset-decoder", "--help"])
+
+    assert result.exit_code == 0
+    assert "--selection-metric" in result.output
+    assert "hybrid_cqs" in result.output
+    assert "--hybrid-eval-songs" in result.output
+    assert "--hybrid-eval-every" in result.output
+
+
 def test_cli_model_backend_defaults_to_separation(monkeypatch, tmp_path: Path) -> None:
     """Model backend should default to separate_drums=True."""
     from click.testing import CliRunner
