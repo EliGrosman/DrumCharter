@@ -102,7 +102,7 @@ def test_config_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_default_model_dir_resolves_to_package_path() -> None:
     p = Path(DEFAULT_CONFIG["model_dir"])
     assert p.parent.name == "models"
-    assert p.is_dir()
+    assert p.name == "finetuned"
 
 
 def test_default_onset_decoder_dir_resolves_to_models_path() -> None:
