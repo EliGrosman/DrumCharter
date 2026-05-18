@@ -1,3 +1,11 @@
+"""Fine-tuned model backend for drum transcription.
+
+Loads a model bundle, computes spectrograms, runs inference in chunks,
+picks peaks, and converts activations to :class:`~audiotochart.drums.DrumHit`
+objects. Supports both the ADTOF frame-RNN architecture and the standard
+mel-spectrogram pipeline.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -48,6 +56,18 @@ class ModelTranscriber:
         tom_consistency: bool = False,
         onset_decoder_dir: str | Path | None = None,
     ) -> None:
+        """Initialize the model transcriber.
+
+        Args:
+            model_dir: Path to the model bundle directory. If None,
+                :meth:`transcribe` will raise on first call.
+            device: Torch device to use (e.g. ``"cuda"``, ``"cpu"``).
+                Default ``"auto"`` picks the best available device.
+            tom_consistency: Whether to apply tom-consistency post-processing
+                to the transcription output.
+            onset_decoder_dir: Optional path to a chord onset decoder bundle
+                directory for refinement.
+        """
         self._model_dir = Path(model_dir) if model_dir else None
         self._device = device or "auto"
         self._tom_consistency = tom_consistency
@@ -57,13 +77,16 @@ class ModelTranscriber:
 
     @property
     def model_dir(self) -> Path | None:
+        """The model bundle directory, or None if not configured."""
         return self._model_dir
 
     @property
     def onset_decoder_dir(self) -> Path | None:
+        """The onset decoder bundle directory, or None if not configured."""
         return self._onset_decoder_dir
 
     def _ensure_loaded(self) -> ModelBundle:
+        """Load the model bundle lazily on first use."""
         if self._bundle is not None:
             return self._bundle
         if self._model_dir is None:
@@ -75,6 +98,29 @@ class ModelTranscriber:
         return self._bundle
 
     def transcribe(self, audio_path: Path) -> list[DrumHit]:
+        """Transcribe drum audio from a WAV file into a list of hits.
+
+        The pipeline is:
+        1. Compute spectrogram (ADTOF chroma STFT or mel spectrogram).
+        2. Run the model in chunks to produce per-frame activations.
+        3. Apply confidence gating to remove classes with low max activation.
+        4. Pick peaks per class using the configured peak-picking algorithm.
+        5. Optionally refine with the chord onset decoder.
+        6. Optionally apply tom-consistency post-processing.
+
+        Args:
+            audio_path: Path to the input audio file.
+
+        Returns:
+            A list of :class:`~audiotochart.drums.DrumHit` objects sorted by time.
+
+        Raises:
+            FileNotFoundError: If *audio_path* does not exist.
+            ModelTranscriberError: If thresholds or confidence gates mismatch
+                the model output dimensions (for ADTOF models).
+            ImportError: If librosa is not installed and a mel spectrogram
+                is needed.
+        """
         audio_path = Path(audio_path)
         if not audio_path.is_file():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -258,6 +304,17 @@ class ModelTranscriber:
         return hits
 
     def _ensure_onset_decoder_loaded(self, bundle: ModelBundle) -> object:
+        """Load and cache the onset decoder bundle on first use.
+
+        Args:
+            bundle: The base model bundle containing encoder info.
+
+        Returns:
+            The loaded onset decoder bundle.
+
+        Raises:
+            ModelTranscriberError: If no onset_decoder_dir is configured.
+        """
         if self._onset_decoder_bundle is not None:
             return self._onset_decoder_bundle
         if self._onset_decoder_dir is None:
@@ -273,11 +330,31 @@ class ModelTranscriber:
 
 
 def _is_pro8_output(labels: list[str], variant: str) -> bool:
+    """Check if the model output matches the pro8 architecture.
+
+    Args:
+        labels: The list of instrument labels from the model bundle.
+        variant: The variant string from the model config.
+
+    Returns:
+        True if the variant is "pro8" or labels match PRO8_LABELS.
+    """
     return variant == PRO8_VARIANT or labels == PRO8_LABELS
 
 
 def _compute_adtof_spectrogram(audio_path: Path) -> tuple[np.ndarray, float]:
-    """Compute the fine-tuned model spectrogram with the training-time path."""
+    """Compute the ADTOF spectrogram using the training-time path.
+
+    Loads audio at 44.1kHz, normalizes, and computes the chroma STFT
+    filterbank used by the ADTOF frame-RNN model.
+
+    Args:
+        audio_path: Path to the input audio file.
+
+    Returns:
+        A tuple of ``(spectrogram, fps)`` where spectrogram has shape
+        ``(T, freq_bins, 1)`` and fps is the frames-per-second rate.
+    """
     import librosa
     from adtof_pytorch.audio import AudioProcessor
 
@@ -297,7 +374,17 @@ def _compute_adtof_spectrogram(audio_path: Path) -> tuple[np.ndarray, float]:
 
 
 def _compute_mel_spectrogram(audio_path: Path, config: dict) -> tuple[np.ndarray, float]:
-    """Compute a standard mel spectrogram via librosa."""
+    """Compute a standard mel spectrogram via librosa.
+
+    Args:
+        audio_path: Path to the input audio file.
+        config: Model config dict containing audio parameters:
+            sample_rate, n_mels, n_fft, hop_length, fmin, fmax.
+
+    Returns:
+        A tuple of ``(spectrogram, fps)`` where spectrogram has shape
+        ``(T, n_mels, 1)`` and fps is the frames-per-second rate.
+    """
     sr: int = config.get("sample_rate", 22050)
     n_mels: int = config.get("n_mels", 84)
     n_fft: int = config.get("n_fft", 1024)
@@ -328,8 +415,16 @@ def _pick_peaks_original(acts: np.ndarray, thresholds: list[float], fps: float) 
 
     A frame is a peak if it is strictly greater than its left neighbour,
     strictly greater than (or equal to) its right neighbour, and exceeds
-    the per-class threshold.  This is the exact logic from
+    the per-class threshold. This is the exact logic from
     ``chartgen.training.thresholds.pick_peaks``.
+
+    Args:
+        acts: Frame-level activation array of shape ``(T, num_classes)``.
+        thresholds: Per-class threshold values for peak detection.
+        fps: Frames per second of the spectrogram.
+
+    Returns:
+        A list of ``(time_sec, class_idx, confidence)`` tuples sorted by time.
     """
     num_classes = acts.shape[1]
     onsets: list[tuple[float, int, float]] = []
@@ -356,7 +451,22 @@ def _pick_peaks_simple(
     fps: float,
     num_classes: int | None = None,
 ) -> list[tuple[float, int, float]]:
-    """Simple peak picker for non-ADTOF models."""
+    """Simple peak picker for non-ADTOF models.
+
+    Scans each class's activation curve, finds local maxima above threshold,
+    and enforces a minimum distance between consecutive peaks.
+
+    Args:
+        acts: Frame-level activation array of shape ``(T, num_classes)``.
+        thresholds: Per-class threshold values for peak detection.
+        min_distance: Minimum frame distance between consecutive peaks
+            for the same class.
+        fps: Frames per second of the spectrogram.
+        num_classes: Number of classes to process. Defaults to ``acts.shape[1]``.
+
+    Returns:
+        A list of ``(time_sec, class_idx, confidence)`` tuples sorted by time.
+    """
     n_out = acts.shape[1]
     n_track = num_classes if num_classes is not None else n_out
     onsets: list[tuple[float, int, float]] = []

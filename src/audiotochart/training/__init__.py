@@ -1,3 +1,9 @@
+"""Public API for the training subpackage.
+
+Re-exports core types and factory functions used by training pipelines
+and downstream consumers such as the CLI and preprocessing scripts.
+"""
+
 from audiotochart.training.rb_midi import (
     CLASS_NAMES,
     NUM_CLASSES,

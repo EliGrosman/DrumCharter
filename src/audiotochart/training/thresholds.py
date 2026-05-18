@@ -1,9 +1,24 @@
+"""Peak-picking, F-measure evaluation, and threshold optimisation for drum transcription.
+
+Provides utilities for converting continuous activations into discrete
+onset predictions and for grid-searching optimal per-class thresholds.
+"""
+
 from __future__ import annotations
 
 import numpy as np
 
 
 def pick_peaks(activation: np.ndarray, threshold: float) -> np.ndarray:
+    """Find local-maximum peak frames above a threshold in a 1-D activation array.
+
+    Args:
+        activation: 1-D array of frame-level activations.
+        threshold: Minimum activation value for a peak.
+
+    Returns:
+        Int64 array of frame indices where peaks occur.
+    """
     if activation.size == 0:
         return np.empty(0, dtype=np.int64)
 
@@ -19,6 +34,19 @@ def fmeasure_with_tolerance(
     *,
     tolerance_frames: int,
 ) -> tuple[float, float, float]:
+    """Compute precision, recall, and F-measure with frame-level tolerance.
+
+    Each predicted frame is matched to at most one ground-truth frame
+    within the given tolerance using a greedy nearest-neighbour strategy.
+
+    Args:
+        pred_frames: 1-D array of predicted frame indices.
+        gt_frames: 1-D array of ground-truth frame indices.
+        tolerance_frames: Maximum frame difference for a valid match.
+
+    Returns:
+        Tuple of (precision, recall, f_measure).
+    """
     pred_frames = np.asarray(pred_frames, dtype=np.int64)
     gt_frames = np.asarray(gt_frames, dtype=np.int64)
     if pred_frames.ndim == 0:
@@ -66,6 +94,14 @@ def fmeasure_with_tolerance(
 
 
 def labels_to_frame_list(label_track: np.ndarray) -> np.ndarray:
+    """Convert a binary label track to an array of frame indices.
+
+    Args:
+        label_track: 1-D array with 1.0 at onset frames.
+
+    Returns:
+        Int64 array of frame indices where the track exceeds 0.5.
+    """
     return np.flatnonzero(label_track > 0.5).astype(np.int64)
 
 
@@ -76,6 +112,17 @@ def optimize_thresholds(
     tolerance_frames: int = 2,
     grid: np.ndarray | None = None,
 ) -> tuple[list[float], list[float]]:
+    """Grid-search per-class thresholds to maximise F-measure.
+
+    Args:
+        activations_per_class: Per-class concatenated activation arrays.
+        gt_per_class: Per-class ground-truth frame indices (offset-adjusted).
+        tolerance_frames: Frame tolerance for F-measure computation.
+        grid: 1-D array of candidate thresholds. Defaults to arange(0.10, 0.61, 0.02).
+
+    Returns:
+        Tuple of (best_thresholds, best_f_scores) for each class.
+    """
     if grid is None:
         grid = np.arange(0.10, 0.61, 0.02)
 

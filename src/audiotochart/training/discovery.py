@@ -1,3 +1,9 @@
+"""Discovery of Rock Band song directories from extracted archives.
+
+Scans directory trees for notes.mid files and associates each with its
+drum audio stems (drums.ogg or drums_*.ogg).
+"""
+
 from __future__ import annotations
 
 import logging
@@ -13,6 +19,26 @@ _NOTES_MID = "notes.mid"
 
 @dataclass
 class RBSong:
+    """Metadata for a single discovered Rock Band song.
+
+    Attributes:
+        path: Path to the song directory.
+        midi_path: Path to notes.mid.
+        drum_audio_paths: Paths to drum stem audio files.
+        has_full_mix: Whether a full mix (song.ogg) is present.
+        song_name: Display name for the song (defaults to directory name).
+        source_archive: Name of the source archive file.
+    """
+    """Metadata for a single discovered Rock Band song.
+
+    Attributes:
+        path: Path to the song directory.
+        midi_path: Path to notes.mid.
+        drum_audio_paths: Paths to drum stem audio files.
+        has_full_mix: Whether a full mix (song.ogg) is present.
+        song_name: Display name for the song (defaults to directory name).
+        source_archive: Name of the source archive file.
+    """
     path: Path
     midi_path: Path
     drum_audio_paths: list[Path] = field(default_factory=list)
@@ -26,9 +52,17 @@ class RBSong:
 
 
 def discover_songs(root: Path) -> list[RBSong]:
-    root = Path(root)
-    if not root.is_dir():
-        raise NotADirectoryError(f"Not a directory: {root}")
+    """Recursively discover all Rock Band songs under a root directory.
+
+    Args:
+        root: The root directory to search.
+
+    Returns:
+        A list of RBSong objects with valid drum audio.
+    
+    Raises:
+        NotADirectoryError: If root is not a valid directory.
+    """
 
     songs: list[RBSong] = []
     for midi_path in sorted(root.rglob(_NOTES_MID)):
@@ -52,6 +86,10 @@ def discover_songs(root: Path) -> list[RBSong]:
 
 
 def _find_drum_audio(song_dir: Path) -> list[Path]:
+    """Find drum audio files in a song directory.
+
+    Checks for a single drums.ogg first, then falls back to drums_*.ogg.
+    """
     single = song_dir / _DRUM_SINGLE
     if single.is_file():
         return [single]

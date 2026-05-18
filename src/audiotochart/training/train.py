@@ -1,3 +1,10 @@
+"""Frame-level model training loop for drum transcription.
+
+Implements the two-phase training workflow: warmup (all layers trainable)
+followed by fine-tuning (CNN backbone frozen, RNN + head retrained),
+with validation, checkpointing, and threshold optimisation.
+"""
+
 from __future__ import annotations
 
 import json

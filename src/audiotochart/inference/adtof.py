@@ -1,3 +1,9 @@
+"""ADTOF inference backend.
+
+Wraps the ``adtof_pytorch`` library to transcribe drum audio to MIDI
+notes, then maps them back to project drum hits.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -20,6 +26,21 @@ def _transcribe_drums_to_midi(
     *,
     device: str = "cuda",
 ) -> Path:
+    """Run ADTOF transcription from a drum WAV to a MIDI file.
+
+    Args:
+        drums_wav: Path to the input drum audio (WAV).
+        midi_out: Destination path for the output MIDI file.
+        device: PyTorch device (``"cuda"`` or ``"cpu"``). Falls back
+            to CPU if CUDA is unavailable.
+
+    Returns:
+        The *midi_out* path.
+
+    Raises:
+        FileNotFoundError: If the input WAV does not exist.
+        TranscriptionError: If ADTOF fails or produces an empty file.
+    """
     try:
         import torch
         from adtof_pytorch import transcribe_to_midi
@@ -60,7 +81,25 @@ def _transcribe_drums_to_midi(
 
 
 class AdtofTranscriber:
+    """Transcriber backend using the ADTOF drum transcription model.
+
+    Transcribes audio to MIDI via ``adtof_pytorch``, then reads the
+    MIDI back as :class:`DrumHit` objects.
+    """
+
     def transcribe(self, audio_path: Path) -> list[DrumHit]:
+        """Transcribe an audio file to drum hits using the ADTOF model.
+
+        Args:
+            audio_path: Path to the input audio file.
+
+        Returns:
+            A list of :class:`DrumHit` objects.
+
+        Raises:
+            FileNotFoundError: If the audio file does not exist.
+            TranscriptionError: If ADTOF transcription fails.
+        """
         audio_path = Path(audio_path)
         if not audio_path.is_file():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")

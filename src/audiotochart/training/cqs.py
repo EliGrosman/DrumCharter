@@ -1,3 +1,10 @@
+"""Chart Quality Score (CQS) computation for drum transcription evaluation.
+
+Provides precision-oriented metrics that measure coverage, identity,
+restraint, and playability of predicted drum patterns against ground
+truth labels.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,6 +19,21 @@ TRIPLE_WINDOW_FRAMES = 5
 
 @dataclass(frozen=True)
 class CQSComponents:
+    """All components that make up a single-song Chart Quality Score.
+
+    Attributes:
+        coverage: Fraction of ground-truth events that were matched.
+        identity: Fraction of matches with correct or forgiving class.
+        restraint: Penalty for extra (spurious) predictions.
+        playability: Fraction of hand events that avoid triple hits.
+        grid_coherence: Reserved for future grid-based metric (None).
+        cqs: Geometric mean of coverage, identity, restraint, playability.
+        n_gt: Number of ground-truth events.
+        n_pred: Number of predicted events.
+        n_matched: Number of matched events.
+        n_spurious: Number of unmatched predicted events.
+    """
+
     coverage: float
     identity: float
     restraint: float
@@ -24,6 +46,7 @@ class CQSComponents:
     n_spurious: int
 
     def as_dict(self) -> dict[str, float | int | None]:
+        """Serialize all component fields to a flat dictionary."""
         return {
             "coverage": self.coverage,
             "identity": self.identity,
@@ -40,12 +63,28 @@ class CQSComponents:
 
 @dataclass(frozen=True)
 class MatchResult:
+    """Result of matching predicted drum events to ground truth.
+
+    Attributes:
+        matches: List of (gt_frame, gt_class, pred_frame, pred_class) tuples.
+        missed: Ground-truth events without a prediction match.
+        spurious: Predicted events without a ground-truth match.
+    """
+
     matches: list[tuple[int, int, int, int]]
     missed: list[tuple[int, int]]
     spurious: list[tuple[int, int]]
 
 
 def picks_to_events(picks_per_class: dict[int, np.ndarray]) -> list[tuple[int, int]]:
+    """Convert per-class peak picks to a flat sorted event list.
+
+    Args:
+        picks_per_class: Mapping from class index to arrays of frame indices.
+
+    Returns:
+        Sorted list of (frame, class_idx) tuples.
+    """
     events: list[tuple[int, int]] = []
     for class_idx, frames in picks_per_class.items():
         for frame in frames:
@@ -60,6 +99,16 @@ def labels_to_events(
     threshold: float = 0.5,
     max_frames: int | None = None,
 ) -> list[tuple[int, int]]:
+    """Convert a label matrix to a flat sorted event list.
+
+    Args:
+        labels: Label array of shape (num_frames, num_classes).
+        threshold: Activation threshold above which a frame is considered active.
+        max_frames: Maximum number of frames to consider (None for all).
+
+    Returns:
+        Sorted list of (frame, class_idx) tuples.
+    """
     t_frames = labels.shape[0] if max_frames is None else min(labels.shape[0], max_frames)
     events: list[tuple[int, int]] = []
     for class_idx in range(labels.shape[1]):
@@ -75,6 +124,19 @@ def match_events(
     *,
     tol_frames: int = 2,
 ) -> MatchResult:
+    """Match predicted events to ground-truth events within a frame tolerance.
+
+    Performs a two-pass matching: same-class matches are preferred, then any-class
+    matches are used for remaining unmatched predictions.
+
+    Args:
+        gt_events: Ground-truth (frame, class) events.
+        pred_events: Predicted (frame, class) events.
+        tol_frames: Maximum frame distance for a match.
+
+    Returns:
+        A MatchResult with matched, missed, and spurious events.
+    """
     if not gt_events:
         return MatchResult(matches=[], missed=[], spurious=list(pred_events))
     if not pred_events:
@@ -138,11 +200,30 @@ def match_events(
 
 
 def coverage(match: MatchResult) -> float:
+    """Fraction of ground-truth events that were matched.
+
+    Args:
+        match: The MatchResult from matching predictions to ground truth.
+
+    Returns:
+        Coverage score in [0, 1].
+    """
     n_gt = len(match.matches) + len(match.missed)
     return 1.0 if n_gt == 0 else len(match.matches) / n_gt
 
 
 def identity(match: MatchResult) -> float:
+    """Fraction of matched events with correct or forgiving class assignment.
+
+    Same-class matches score 1.0; cymbal-to-cymbal and tom-to-tom
+    matches score 0.5.
+
+    Args:
+        match: The from matching predictions to ground truth.
+
+    Returns:
+        Identity score in [0, 1].
+    """
     if not match.matches:
         return 1.0
     total = 0.0
@@ -157,6 +238,14 @@ def identity(match: MatchResult) -> float:
 
 
 def restraint(match: MatchResult) -> float:
+    """Penalty for spurious (extra) predictions relative to ground truth.
+
+    Args:
+        match: The from matching predictions to ground truth.
+
+    Returns:
+        Restraint score in [0, 1].
+    """
     n_gt = len(match.matches) + len(match.missed)
     if n_gt == 0:
         return 1.0 if not match.spurious else 0.0
@@ -168,6 +257,18 @@ def playability(
     *,
     triple_window_frames: int = TRIPLE_WINDOW_FRAMES,
 ) -> float:
+    """Fraction of non-kick events that avoid three-way collisions.
+
+    Three distinct hand-drum classes hit within a short window are
+    flagged as unplayable.
+
+    Args:
+        pred_events: Predicted (frame, class) events.
+        triple_window_frames: Frame window for triple-hit detection.
+
+    Returns:
+        Playability score in [0, 1].
+    """
     hand_events = [(frame, class_idx) for frame, class_idx in pred_events if class_idx != 0]
     if len(hand_events) < 3:
         return 1.0
@@ -180,7 +281,7 @@ def playability(
             _frame_1, class_1 = hand_events[idx_1]
             idx_2 = idx_1 + 1
             while idx_2 < len(hand_events) and hand_events[idx_2][0] - frame_0 <= triple_window_frames:
-                _frame_2, class_2 = hand_events[idx_2]
+                _frame_frame_2, class_2 = hand_events[idx_2]
                 if len({class_0, class_1, class_2}) == 3:
                     flagged.update({idx_0, idx_1, idx_2})
                 idx_2 += 1
@@ -195,6 +296,19 @@ def compute_cqs(
     *,
     tol_frames: int = 2,
 ) -> CQSComponents:
+    """Compute the full Chart Quality Score for a single song.
+
+    The score is the geometric mean of coverage, identity, restraint,
+    and playability.
+
+    Args:
+        picks_per_class: Per-class peak frame arrays from prediction.
+        labels: Ground-truth label matrix.
+        tol_frames: Frame tolerance for event matching.
+
+    Returns:
+        A CQSComponents named tuple with all sub-scores and counts.
+    """
     t_frames = labels.shape[0]
     clipped = {
         class_idx: frames[(frames >= 0) & (frames < t_frames)]
@@ -226,6 +340,17 @@ def compute_cqs(
 
 
 def aggregate_cqs(per_song: Iterable[CQSComponents]) -> dict[str, float | int | None]:
+    """Aggregate per-song CQS scores into a single summary dictionary.
+
+    Averages each component across all songs.
+
+    Args:
+        per_song: An iterable of CQSComponents.
+
+    Returns:
+        Dictionary with mean coverage, identity, restraint, playability,
+        cqs, plus a song count.
+    """
     rows = list(per_song)
     if not rows:
         return {

@@ -1,3 +1,9 @@
+"""Audio I/O utilities.
+
+Provides helpers for reading audio file duration via librosa with a
+WAV-header fallback when librosa is unavailable.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -19,7 +25,14 @@ class AudioError(Exception):
 
 
 def _fallback_duration_sec(path: Path) -> float | None:
-    """Try to get duration from WAV header without librosa."""
+    """Try to get duration from WAV header without librosa.
+
+    Args:
+        path: Path to a WAV file.
+
+    Returns:
+        Duration in seconds, or None on failure.
+    """
     try:
         with wave.open(str(path), "r") as wf:
             frames = wf.getnframes()

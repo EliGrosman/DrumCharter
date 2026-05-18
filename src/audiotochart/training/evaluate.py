@@ -1,3 +1,9 @@
+"""Evaluation of frame-level drum transcription models.
+
+Collects per-song activations, computes F-measure at multiple tolerances,
+and formats human-readable reports.
+"""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +29,20 @@ CLASS_NAMES_8 = ["kick", "snare", "hihat", "y_tom", "ride", "b_tom", "crash", "f
 
 @dataclass
 class EvalReport:
+    """Evaluation report containing per-class and macro F-measure scores.
+
+    Attributes:
+        num_classes: Number of drum classes evaluated.
+        tolerance_ms_primary: Primary tolerance in milliseconds.
+        tolerance_ms_secondary: Secondary tolerance in milliseconds.
+        per_class_primary: (precision, recall, f) per class at primary tolerance.
+        per_class_secondary: (precision, recall, f) per class at secondary tolerance.
+        macro_primary: Macro-averaged (precision, recall, f) at primary tolerance.
+        macro_secondary: Macro-averaged (precision, recall, f) at secondary tolerance.
+        num_songs: Number of songs evaluated.
+        thresholds: Per-class peak-picking thresholds used.
+    """
+
     num_classes: int
     tolerance_ms_primary: int
     tolerance_ms_secondary: int
@@ -34,14 +54,24 @@ class EvalReport:
     thresholds: list[float] = field(default_factory=list)
 
     def to_json(self) -> str:
+        """Serialize the report to a JSON string."""
         return json.dumps(asdict(self), indent=2)
 
     def save(self, path: Path) -> None:
+        """Write the JSON report to a file, creating parent directories if needed."""
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.to_json())
 
 
 def _macro(triples: list[tuple[float, float, float]]) -> tuple[float, float, float]:
+    """Compute macro-averaged precision, recall, and F-measure over triples.
+
+    Args:
+        triples: List of (precision, recall, f) tuples.
+
+    Returns:
+        Mean (precision, recall, f) across all provided triples.
+    """
     if not triples:
         return 0.0, 0.0, 0.0
     p = sum(t[0] for t in triples) / len(triples)
@@ -58,6 +88,19 @@ def collect_song_activations(
     device: str = "cuda",
     max_chunk_frames: int = 2000,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Run a frame model over all song entries and collect sigmoid activations.
+
+    Processes each spectrogram in chunks to avoid OOM on long songs.
+
+    Args:
+        model: Frame-level transcription model.
+        entries: Song entries to process.
+        device: Device string for inference.
+        max_chunk_frames: Maximum frames per chunk.
+
+    Returns:
+        List of (activations, labels) tuples with truncated to matching lengths.
+    """
     model.eval()
     out: list[tuple[np.ndarray, np.ndarray]] = []
 
@@ -100,6 +143,23 @@ def evaluate(
     tolerance_ms_secondary: int = 30,
     device: str = "cuda",
 ) -> EvalReport:
+    """Run a full evaluation of a frame model against song entries.
+
+    Peak-picks at the given thresholds then computes F-measure at
+    both primary and secondary tolerances for every class.
+
+    Args:
+        model: Frame-level transcription model.
+        entries: Song entries to evaluate.
+        thresholds: Per-class peak-picking thresholds.
+        fps: Frames per second for tolerance conversion.
+        tolerance_ms_primary: Primary tolerance in milliseconds.
+        tolerance_ms_secondary: Secondary tolerance in milliseconds.
+        device: Device string for inference.
+
+    Returns:
+        An EvalReport with per-class and macro metrics.
+    """
     num_classes = len(thresholds)
     tol_primary = max(1, round(tolerance_ms_primary * fps / 1000))
     tol_secondary = max(1, round(tolerance_ms_secondary * fps / 1000))
@@ -133,6 +193,15 @@ def evaluate(
 
 
 def format_report(report: EvalReport, class_names: list[str] | None = None) -> str:
+    """Format an EvalReport into a human-readable multi-line string.
+
+    Args:
+        report: The evaluation report to format.
+        class_names: Optional list of class display names.
+
+    Returns:
+        A formatted multi-line string with macro and per-class metrics.
+    """
     lines = []
     lines.append(
         f"Eval over {report.num_songs} songs, "

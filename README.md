@@ -41,6 +41,14 @@ Artist - Song Name/
 
 Copy that generated song folder into your Clone Hero songs directory.
 
+## Documentation
+
+Detailed documentation is available under `docs/`:
+
+- **[docs/architecture.md](docs/architecture.md)** — system architecture and code organization
+- **[docs/model.md](docs/model.md)** — model architecture, two-phase training, loss functions, onset decoder, tom consistency
+- **[docs/training.md](docs/training.md)** — full training pipeline: data preparation, frame-level training, chord decoder training, evaluation
+
 ## Backend Quick Reference
 
 | Backend | Description | Separation default |
@@ -133,6 +141,14 @@ uv run audiotochart generate ./song.wav --from-midi ./drums.mid --song "Test Son
 - **Slow CPU separation:** Demucs on CPU is slow. Either wait longer, use `--no-separate-drums`, or install CUDA drivers and `--device cuda`.
 - **Empty chart:** The model may not have detected enough drum hits. Try lowering thresholds in the model directory, or use `--backend fake` to verify the output pipeline works.
 - **Tempo detection failed:** Pass `--bpm 120` or another known BPM to bypass automatic beat detection.
+
+## Training
+
+AudioToChart includes a full training pipeline for fine-tuning the ADTOF Frame RNN and training the chord onset decoder. See **[docs/training.md](docs/training.md)** for detailed instructions.
+
+## Training
+
+AudioToChart includes a full training pipeline for fine-tuning the ADTOF Frame RNN and training the chord onset decoder. See **[docs/training.md](docs/training.md)** for detailed instructions.
 
 ## Not Included
 

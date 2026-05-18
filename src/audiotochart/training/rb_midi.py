@@ -1,3 +1,10 @@
+"""MIDI parsing utilities for Rock Band drum charts.
+
+Handles the 8-class pro drum mapping (kick, snare, hi-hat, yellow tom,
+ride, blue tom, crash, floor tom) and resolves Yamaha pad-splitting
+using pro drum marker notes.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -34,11 +41,15 @@ _DRUM_TRACK_NAMES = {"PART DRUMS", "PART DRUMS_2X"}
 
 @dataclass(frozen=True, slots=True)
 class DrumOnset:
+    """A single drum hit with timing and class information."""
+
     time: float
     class_id: int
 
 
 def _find_drum_track(pm: object) -> object | None:
+    """Locate the PART DRUMS instrument track in a PrettyMIDI object."""
+    """Locate the PART DRUMS instrument track in a PrettyMIDI object."""
     for inst in pm.instruments:
         if inst.name.strip().upper() in _DRUM_TRACK_NAMES:
             return inst
@@ -46,6 +57,8 @@ def _find_drum_track(pm: object) -> object | None:
 
 
 def _resolve_class(pitch: int, has_marker: bool) -> int | None:
+    """Map a MIDI pitch to a 0-7 drum class ID, applying pad-splitting when markers are present."""
+    """Map a MIDI pitch to a 0-7 drum class ID, applying pad-splitting when markers are present."""
     if pitch == 96:
         return 0
     if pitch == 97:
@@ -59,6 +72,30 @@ def _resolve_class(pitch: int, has_marker: bool) -> int | None:
 
 
 def parse_rb_drum_onsets(midi_path: Path) -> list[DrumOnset]:
+    """Parse drum onset events from a Rock Band MIDI file.
+
+    Args:
+        midi_path: Path to the MIDI file to parse.
+
+    Returns:
+        A list of DrumOnset objects sorted by time then class ID.
+
+    Raises:
+        FileNotFoundError: If the MIDI file does not exist.
+        ValueError: If no PART DRUMS track is found.
+    """
+    """Parse drum onset events from a Rock Band MIDI file.
+
+    Args:
+        midi_path: Path to the MIDI file to parse.
+
+    Returns:
+        A list of DrumOnset objects sorted by time then class ID.
+
+    Raises:
+        FileNotFoundError: If the MIDI file does not exist.
+        ValueError: If no PART DRUMS track is found.
+    """
     import mido
     import pretty_midi
 
@@ -127,6 +164,22 @@ def parse_rb_drum_onsets(midi_path: Path) -> list[DrumOnset]:
 
 
 def has_pro_markers(midi_path: Path) -> bool:
+    """Check whether a MIDI file contains pro drum marker notes.
+
+    Args:
+        midi_path: Path to the MIDI file.
+
+    Returns:
+        True if marker pitches (110-112) are present in the drum track.
+    """
+    """Check whether a MIDI file contains pro drum marker notes.
+
+    Args:
+        midi_path: Path to the MIDI file.
+
+    Returns:
+        True if marker pitches (110-112) are present in the drum track.
+    """
     import mido
     import pretty_midi
 
@@ -150,4 +203,20 @@ def has_pro_markers(midi_path: Path) -> bool:
 
 
 def onset_stats(onsets: list[DrumOnset]) -> dict[int, int]:
+    """Count occurrences of each drum class in a list of onsets.
+
+    Args:
+        onsets: A list of DrumOnset objects.
+
+    Returns:
+        A mapping from class ID to hit count.
+    """
+    """Count occurrences of each drum class in a list of onsets.
+
+    Args:
+        onsets: A list of DrumOnset objects.
+
+    Returns:
+        A mapping from class ID to hit count.
+    """
     return dict(Counter(o.class_id for o in onsets))

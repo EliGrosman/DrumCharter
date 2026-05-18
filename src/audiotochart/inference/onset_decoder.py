@@ -36,6 +36,16 @@ class OnsetDecoderError(RuntimeError):
 
 @dataclass(slots=True)
 class ChordDecoderBundle:
+    """Container for a loaded chord onset decoder model and its metadata.
+
+    Attributes:
+        model: The PyTorch ``OnsetConditionedModel`` instance.
+        config: Configuration dict from the decoder's ``config.json``.
+        vocab: The :class:`ChordVocabulary` used for token-mask mapping.
+        device: The torch device the model is on.
+        source_dir: Path to the directory the bundle was loaded from.
+    """
+
     model: object
     config: dict
     vocab: ChordVocabulary
@@ -51,8 +61,23 @@ def load_chord_decoder_bundle(
 ) -> ChordDecoderBundle:
     """Load a standalone chord decoder bundle.
 
+    Loads the model config, chord masks, vocabulary, and weights from *decoder_dir*.
     Supports checkpoints with a full ``model_state`` first, then falls back to
     ``decoder_state`` using the already-loaded base encoder.
+
+    Args:
+        decoder_dir: Path to the onset decoder directory containing
+            ``config.json``, ``chord_masks``, and ``best.pt``.
+        base_bundle: The base model bundle containing encoder info (used for
+            fallback ``decoder_state`` loading).
+        device: The torch device to load the model onto.
+
+    Returns:
+        A :class:`ChordDecoderBundle` with the loaded model and metadata.
+
+    Raises:
+        OnsetDecoderError: If required files are missing, the config is
+            unsupported, or weights fail to load.
     """
 
     decoder_dir = Path(decoder_dir)
@@ -168,7 +193,23 @@ def refine_chord_onsets(
     fps: float,
     thresholds: Sequence[float],
 ) -> list[tuple[float, int, float]]:
-    """Apply the chord decoder and return refined ``(time, class, confidence)`` onsets."""
+    """Apply the chord decoder and return refined ``(time, class, confidence)`` onsets.
+
+    Takes baseline onsets from the model backend, builds onset feature rows,
+    runs the chord decoder in sliding windows, and returns a refined set of
+    onsets where multi-note chords can replace single-note onsets.
+
+    Args:
+        decoder_bundle: The loaded chord decoder bundle.
+        onsets: Baseline onsets as ``(time_sec, class_idx, confidence)`` tuples.
+        acts: Frame-level activation array.
+        spec: Spectrogram used for encoder input.
+        fps: Frames per second of the spectrogram.
+        thresholds: Per-class threshold values.
+
+    Returns:
+        A list of refined ``(time_sec, class_idx, confidence)`` tuples sorted by time.
+    """
 
     if not onsets:
         return []
@@ -234,7 +275,27 @@ def decode_chord_hybrid_onsets(
     max_onsets: int = 256,
     vocab: ChordVocabulary | None = None,
 ) -> list[tuple[int, int]]:
-    """Run a chord decoder over baseline onset timings and expand tokens to events."""
+    """Run a chord decoder over baseline onset timings and expand tokens to events.
+
+    Processes the spectrogram in sliding windows, groups onsets per window,
+    runs greedy autoregressive decoding, and merges predictions back into
+    a global set of (frame, class) pairs.
+
+    Args:
+        model: The ``OnsetConditionedModel`` instance.
+        baseline_onsets: List of ``(frame, class)`` pairs from the model backend.
+        onset_features: Pre-computed onset feature rows.
+        spec: Spectrogram tensor for encoder input.
+        device: The torch device to run inference on.
+        window_frames: Size of each processing window in frames.
+        stride_frames: Stride between consecutive windows.
+        max_onsets: Maximum number of onsets to decode per window.
+        vocab: Optional vocabulary for token-mask conversion.
+            Defaults to :data:`~audiotochart.onset_decoder_common.DEFAULT_CHORD_VOCAB`.
+
+    Returns:
+        A sorted list of ``(frame, class)`` pairs representing the hybrid onsets.
+    """
 
     if not baseline_onsets:
         return []
@@ -326,6 +387,19 @@ def _group_window_onsets(
     *,
     win_start: int,
 ) -> tuple[list[int], np.ndarray]:
+    """Group onsets within a window by local frame index and aggregate features.
+
+    Args:
+        baseline_onsets: List of ``(frame, class)`` pairs.
+        onset_features: Per-onset feature rows.
+        win_indices: Indices into *baseline_onsets* that fall within the window.
+        win_start: The frame offset of the window start.
+
+    Returns:
+        A tuple of ``(local_frames, aggregated_features)`` where *local_frames*
+        is a list of frame indices relative to *win_start* and *aggregated_features*
+        is an array of shape ``(N, 18)`` with combined features per unique frame.
+    """
     grouped: dict[int, dict[str, list]] = {}
     for global_idx in win_indices:
         frame, class_idx = baseline_onsets[global_idx]
@@ -355,6 +429,22 @@ def _greedy_decode_chords(
     max_onsets: int,
     onset_features: object | None = None,
 ) -> list[int]:
+    """Run greedy autoregressive decoding to predict chord tokens.
+
+    Starting from the BOS token, iteratively predicts one chord token per
+    onset frame using the transformer decoder.
+
+    Args:
+        decoder: The ``OnsetConditionedDecoder`` instance.
+        encoder_features: Encoder feature tensor.
+        onset_frames: List of onset frame indices.
+        device: The torch device.
+        max_onsets: Maximum number of onsets to decode.
+        onset_features: Optional per-onset feature tensor.
+
+    Returns:
+        A list of predicted chord token indices (excluding BOS).
+    """
     import torch
 
     n_onsets = min(len(onset_frames), max_onsets)
@@ -387,10 +477,27 @@ def _greedy_decode_chords(
 
 
 def _looks_like_full_model_state(state: dict) -> bool:
+    """Heuristic: check if a checkpoint dict looks like a full model state.
+
+    Returns True if the dict contains keys starting with both "encoder."
+    and "decoder.".
+
+    Args:
+        state: A checkpoint dictionary.
+
+    Returns:
+        True if the state appears to be a full model state dict.
+    """
     return any(isinstance(key, str) and key.startswith("encoder.") for key in state) and any(
         isinstance(key, str) and key.startswith("decoder.") for key in state
     )
 
 
 def _build_decoder_encoder() -> object:
+    """Build a minimal encoder stub for the onset decoder.
+
+    Returns:
+        A model instance built with the ``adtof_frame_rnn`` architecture
+        and 8 output classes.
+    """
     return _build_model_for_architecture(PRO8_ARCHITECTURE, {"num_classes": NUM_CHORD_CLASSES})

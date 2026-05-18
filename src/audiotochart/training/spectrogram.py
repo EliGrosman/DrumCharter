@@ -1,3 +1,9 @@
+"""Spectrogram computation and caching for drum transcription training.
+
+Computes mel-spectrograms from audio using librosa with caching
+via content-hash-based filenames to avoid recomputation.
+"""
+
 from __future__ import annotations
 
 import hashlib

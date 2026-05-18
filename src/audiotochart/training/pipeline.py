@@ -1,3 +1,10 @@
+"""Data preparation pipeline for drum transcription training.
+
+Discovers Rock Band song archives, extracts MIDI and audio files,
+computes spectrograms and target label matrices, and caches the
+results for subsequent training runs.
+"""
+
 from __future__ import annotations
 
 import json

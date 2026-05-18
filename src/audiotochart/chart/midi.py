@@ -1,3 +1,9 @@
+"""MIDI drum file reading and conversion to chart documents.
+
+Maps General MIDI drum pitches and Clone Hero chart MIDI note numbers
+to project instrument labels, then converts via ``hits_to_chart_document``.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -19,6 +25,7 @@ from audiotochart.chart.format import ChartDocument, SongMetadata
 from audiotochart.drums import DrumHit
 
 
+# General MIDI drum pitch to instrument label mapping.
 MIDI_DRUM_MAP: dict[int, str] = {
     35: KICK_LABEL,
     36: KICK_LABEL,
@@ -64,6 +71,11 @@ class MidiError(RuntimeError):
 
 
 def _load_pretty_midi():
+    """Lazy-import and return the ``pretty_midi`` module.
+
+    Raises:
+        MidiError: If pretty_midi is not installed.
+    """
     try:
         import pretty_midi
     except ImportError as exc:
@@ -74,15 +86,40 @@ def _load_pretty_midi():
 
 
 def _is_chart_midi_drum_track(name: str) -> bool:
+    """Check if a track name matches a known Clone Hero drum track name.
+
+    Args:
+        name: The MIDI track name.
+
+    Returns:
+        True if the name corresponds to a Clone Hero drum track.
+    """
     return name.strip().upper() in CHART_MIDI_DRUM_TRACK_NAMES
 
 
 def midi_pitch_to_instrument(pitch: int) -> str | None:
-    """Return the project drum instrument for a General MIDI drum pitch."""
+    """Return the project drum instrument for a General MIDI drum pitch.
+
+    Args:
+        pitch: MIDI note number.
+
+    Returns:
+        Instrument label string, or None if unmapped.
+    """
     return MIDI_DRUM_MAP.get(pitch)
 
 
 def _iter_general_midi_hits(notes: Iterable[object]) -> list[DrumHit]:
+    """Convert General MIDI drum notes to DrumHit objects.
+
+    Uses ``midi_pitch_to_instrument`` for pitch-to-instrument mapping.
+
+    Args:
+        notes: An iterable of ``pretty_midi.Note`` objects.
+
+    Returns:
+        A list of :class:`DrumHit` objects.
+    """
     hits: list[DrumHit] = []
     for note in notes:
         drum_instrument = midi_pitch_to_instrument(note.pitch)
@@ -99,6 +136,16 @@ def _iter_general_midi_hits(notes: Iterable[object]) -> list[DrumHit]:
 
 
 def _iter_chart_midi_hits(notes: Iterable[object]) -> list[DrumHit]:
+    """Convert Clone Hero chart MIDI drum notes to DrumHit objects.
+
+    Handles the five-lane expert drum mapping with tom marker overrides.
+
+    Args:
+        notes: An iterable of ``pretty_midi.Note`` objects.
+
+    Returns:
+        A list of :class:`DrumHit` objects.
+    """
     notes_by_start: dict[float, dict[int, object]] = {}
     for note in notes:
         start = round(float(note.start), 6)
@@ -131,7 +178,21 @@ def _iter_chart_midi_hits(notes: Iterable[object]) -> list[DrumHit]:
 
 
 def iter_drum_midi_hits(path: Path) -> list[DrumHit]:
-    """Read General MIDI drum notes from *path* as neutral ``DrumHit`` objects."""
+    """Read drum MIDI notes from *path* as neutral ``DrumHit`` objects.
+
+    Supports both General MIDI drum tracks and Clone Hero chart MIDI
+    drum tracks (``PART DRUMS``, ``PART REAL_DRUMS``).
+
+    Args:
+        path: Path to a MIDI file.
+
+    Returns:
+        A sorted list of :class:`DrumHit` objects.
+
+    Raises:
+        FileNotFoundError: If the MIDI file does not exist.
+        MidiError: If the MIDI file cannot be parsed.
+    """
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(f"MIDI file not found: {path}")
@@ -161,7 +222,22 @@ def midi_to_chart_document(
     beat_times: Sequence[float] | None = None,
     quantize_divisor: int | None = None,
 ) -> ChartDocument:
-    """Convert a General MIDI drum file into a Clone Hero chart document."""
+    """Convert a MIDI drum file into a Clone Hero chart document.
+
+    Internally calls :func:`iter_drum_midi_hits` followed by
+    :func:`hits_to_chart_document`.
+
+    Args:
+        path: Path to the MIDI file.
+        song: Song metadata for the chart.
+        bpm: Beats per minute.
+        resolution: Ticks per beat. Defaults to 192.
+        beat_times: Detected beat positions for variable-tempo sync.
+        quantize_divisor: Optional quantisation grid divisor.
+
+    Returns:
+        A :class:`ChartDocument` with the converted chart data.
+    """
     return hits_to_chart_document(
         iter_drum_midi_hits(path),
         song=song,

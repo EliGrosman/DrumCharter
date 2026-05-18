@@ -1,3 +1,5 @@
+"""Convert drum hits from various sources into Clone Hero chart documents."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -35,6 +37,17 @@ def seconds_to_tick(
     resolution: int,
     snap_ticks: int = 1,
 ) -> int:
+    """Convert a time in seconds to a chart tick at the given BPM and resolution.
+
+    Args:
+        time_sec: Time in seconds to convert.
+        bpm: Tempo in beats per minute.
+        resolution: Ticks per beat (e.g. 192).
+        snap_ticks: Snap to the nearest multiple of this value.
+
+    Returns:
+        The chart tick corresponding to *time_sec*.
+    """
     sec_per_beat = 60.0 / bpm
     sec_per_tick = sec_per_beat / float(resolution)
     if snap_ticks < 1:
@@ -45,7 +58,15 @@ def seconds_to_tick(
 
 @dataclass(frozen=True)
 class BeatTempoMap:
-    """Beat-aligned tempo map used for sync-track emission and tick conversion."""
+    """Beat-aligned tempo map used for sync-track emission and tick conversion.
+
+    Attributes:
+        beat_times: Detected beat positions in seconds.
+        beat_ticks: Corresponding tick positions for each beat.
+        first_interval_sec: Duration of the first beat interval in seconds.
+        last_interval_sec: Duration of the last beat interval in seconds.
+        resolution: Ticks per beat.
+    """
 
     beat_times: list[float]
     beat_ticks: list[int]
@@ -59,7 +80,18 @@ def build_beat_tempo_map(
     *,
     resolution: int,
 ) -> BeatTempoMap | None:
-    """Build a variable-tempo map from detected beat positions."""
+    """Build a variable-tempo map from detected beat positions.
+
+    Computes beat intervals from consecutive detected beat times and maps
+    them to chart-relative ticks at the given resolution.
+
+    Args:
+        beat_times: Detected beat positions in seconds, or None.
+        resolution: Ticks per beat.
+
+    Returns:
+        A :class:`BeatTempoMap` if at least two valid beats exist, or None.
+    """
     beats = normalize_beat_times(beat_times)
     if len(beats) < 2:
         return None
@@ -84,7 +116,18 @@ def build_beat_tempo_map(
 
 
 def seconds_to_tick_tempo_map(time_sec: float, tempo_map: BeatTempoMap) -> int:
-    """Convert seconds to ticks using a beat-derived variable-tempo map."""
+    """Convert seconds to ticks using a beat-derived variable-tempo map.
+
+    Uses linear interpolation between beat boundaries when the tempo
+    varies across beats.
+
+    Args:
+        time_sec: Time in seconds to convert.
+        tempo_map: A :class:`BeatTempoMap` built from detected beats.
+
+    Returns:
+        The chart tick corresponding to *time_sec*.
+    """
     time_sec = float(time_sec)
     if time_sec <= 0:
         return 0
@@ -113,7 +156,15 @@ def seconds_to_tick_tempo_map(time_sec: float, tempo_map: BeatTempoMap) -> int:
 
 
 def tick_to_seconds_tempo_map(tick: int, tempo_map: BeatTempoMap) -> float:
-    """Convert a chart tick back to seconds using a beat-derived tempo map."""
+    """Convert a chart tick back to seconds using a beat-derived tempo map.
+
+    Args:
+        tick: Chart tick to convert.
+        tempo_map: A :class:`BeatTempoMap` built from detected beats.
+
+    Returns:
+        Time in seconds corresponding to *tick*.
+    """
     tick = max(0, int(tick))
 
     beats = tempo_map.beat_times
@@ -141,7 +192,20 @@ def build_sync_track_from_beats(
     *,
     resolution: int,
 ) -> list[SyncTrackEvent]:
-    """Emit a variable-tempo SyncTrack from detected beat times."""
+    """Emit a variable-tempo SyncTrack from detected beat times.
+
+    Produces a time-signature event and one or more tempo events (``B <bpm>``)
+    for each detected beat where the tempo changes.
+
+    Args:
+        beat_times: Detected beat positions in seconds, or ``None`` for a
+            constant-tempo fallback.
+        resolution: Ticks per beat (e.g. 192).
+
+    Returns:
+        A list of :class:`SyncTrackEvent` objects for the chart's ``[SyncTrack]``
+        section.
+    """
     tempo_map = build_beat_tempo_map(beat_times, resolution=resolution)
     if tempo_map is None:
         return [SyncTrackEvent(0, "TS 4")]
@@ -174,7 +238,18 @@ INSTRUMENT_MAP = INSTRUMENT_TO_CHART_NOTES
 
 
 def _cap_simultaneous_notes(notes: list[DrumNote]) -> list[DrumNote]:
-    """Limit chart notes to kick plus at most two hand lanes per tick."""
+    """Limit chart notes to kick plus at most two hand lanes per tick.
+
+    When more than ``MAX_HAND_LANES`` hand-lane pads occur at the same
+    tick, lower-priority pads are dropped (cymbal modifiers are preserved
+    for kept lanes).
+
+    Args:
+        notes: Drum notes to filter.
+
+    Returns:
+        Filtered notes with simultaneous hits capped.
+    """
     out: list[DrumNote] = []
     sorted_notes = sorted(notes, key=lambda note: (note.tick, note.note, note.length))
 
@@ -205,6 +280,14 @@ def _cap_simultaneous_notes(notes: list[DrumNote]) -> list[DrumNote]:
 
 
 def _dedupe_notes(notes: list[DrumNote]) -> list[DrumNote]:
+    """Remove duplicate DrumNote entries (same tick, note, and length).
+
+    Args:
+        notes: Drum notes to deduplicate.
+
+    Returns:
+        A new list with duplicates removed, sorted by (tick, note, length).
+    """
     seen: set[tuple[int, int, int]] = set()
     deduped: list[DrumNote] = []
     for note in sorted(notes, key=lambda n: (n.tick, n.note, n.length)):
@@ -224,6 +307,23 @@ def hits_to_chart_document(
     beat_times: Sequence[float] | None = None,
     quantize_divisor: int | None = None,
 ) -> ChartDocument:
+    """Convert drum hits into a full Clone Hero chart document.
+
+    Applies quantization, simultaneous-hit limiting, instrument-to-note
+    mapping, variable-tempo sync track generation, and builds the final
+    :class:`ChartDocument` with Expert drums populated.
+
+    Args:
+        hits: List of drum hits to convert.
+        song: :class:`SongMetadata` for the chart.
+        bpm: Beats per minute (used as fallback if no beat_times).
+        resolution: Ticks per beat. Defaults to 192.
+        beat_times: Detected beat positions for variable-tempo sync.
+        quantize_divisor: If set, snap hits to a grid (e.g. 16 for 1/16 notes).
+
+    Returns:
+        A :class:`ChartDocument` with the generated chart data.
+    """
     if quantize_divisor is not None and hits:
         quantize_beats = normalize_beat_times(beat_times)
         if len(quantize_beats) < 2:

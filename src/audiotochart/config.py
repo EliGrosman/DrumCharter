@@ -1,3 +1,9 @@
+"""User configuration management.
+
+Stores and loads settings from ``~/.config/audiotochart/config.json``
+with sensible defaults defined in ``DEFAULT_CONFIG``.
+"""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +29,14 @@ DEFAULT_CONFIG: dict = {
 
 
 def load_config() -> dict:
+    """Load merged configuration from disk.
+
+    Returns the user config merged with ``DEFAULT_CONFIG``, with newer
+    values overwriting defaults.
+
+    Returns:
+        A dict of configuration key-value pairs.
+    """
     try:
         with open(_CONFIG_PATH) as f:
             data = json.load(f)
@@ -36,6 +50,14 @@ def load_config() -> dict:
 
 
 def save_config(cfg: dict) -> None:
+    """Save configuration dict to disk.
+
+    Creates the config directory if it doesn't exist. File permissions
+    are set to 0o600 for security.
+
+    Args:
+        cfg: The configuration dict to save.
+    """
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(_CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
@@ -43,4 +65,9 @@ def save_config(cfg: dict) -> None:
 
 
 def config_exists() -> bool:
+    """Check whether a user config file exists on disk.
+
+    Returns:
+        True if ``~/.config/audiotochart/config.json`` exists.
+    """
     return _CONFIG_PATH.is_file()

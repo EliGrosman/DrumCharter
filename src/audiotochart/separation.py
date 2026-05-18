@@ -1,3 +1,8 @@
+"""Drum source separation using Demucs.
+
+Wraps the Demucs library to isolate the drum stem from a mixed audio file.
+"""
+
 from __future__ import annotations
 
 import logging

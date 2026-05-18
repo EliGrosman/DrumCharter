@@ -1,3 +1,10 @@
+"""PyTorch device resolution utilities.
+
+Maps user-facing device strings ("auto", "cpu", "cuda") to concrete
+device identifiers, with helpful error messages when CUDA is requested
+but unavailable.
+"""
+
 from __future__ import annotations
 
 VALID_TORCH_DEVICES = ("auto", "cpu", "cuda")

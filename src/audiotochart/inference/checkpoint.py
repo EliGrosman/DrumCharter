@@ -1,3 +1,10 @@
+"""Model bundle loading and checkpoint handling.
+
+Supports loading model bundles (``config.json``, ``weights.pt``/``best.pt``,
+``labels.json``, ``thresholds.json``) for both the ``simple_cnn`` test
+architecture and the ``adtof_frame_rnn`` pro8 architecture.
+"""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +23,15 @@ class ModelLoadError(RuntimeError):
 
 @dataclass
 class ModelBundle:
+    """Container for a loaded model, its labels, config, and device.
+
+    Attributes:
+        model: The PyTorch model instance.
+        labels: List of instrument label strings.
+        config: Model configuration dict from ``config.json``.
+        device: The torch device the model is on.
+    """
+
     model: object
     labels: list[str]
     config: dict = field(default_factory=dict)
@@ -23,16 +39,32 @@ class ModelBundle:
 
 
 PRO8_VARIANT = "pro8"
+"""Variant string for the built-in pro8 model."""
+
 PRO8_ARCHITECTURE = "adtof_frame_rnn"
+"""Architecture name for the built-in pro8 model (ADTOF Frame RNN)."""
 
 
 def _build_simple_cnn(config: dict) -> object:
+    """Build a simple 2D CNN for test models.
+
+    A minimal architecture with two Conv2d layers followed by a Linear head.
+    Used exclusively in tests and for simple architectures.
+
+    Args:
+        config: Config dict with ``num_classes`` and ``hidden_dim`` keys.
+
+    Returns:
+        A ``_SimpleCNN`` module instance.
+    """
     import torch.nn as nn
 
     num_classes: int = config.get("num_classes", 8)
     hidden: int = config.get("hidden_dim", 8)
 
     class _SimpleCNN(nn.Module):
+        """Two-layer 2D CNN for simple test architectures."""
+
         def __init__(self) -> None:
             super().__init__()
             self.conv = nn.Sequential(
@@ -45,6 +77,14 @@ def _build_simple_cnn(config: dict) -> object:
             self.fc = nn.Linear(hidden, num_classes)
 
         def forward(self, x):
+            """Forward pass through the CNN.
+
+            Args:
+                x: Input tensor of shape ``(B, T, F, C)``.
+
+            Returns:
+                Logits of shape ``(B, T, num_classes)``.
+            """
             B, T, F, C = x.shape
             x = x.permute(0, 3, 1, 2)
             x = self.conv(x)
@@ -99,6 +139,17 @@ def _validate_metadata_list_length(
     expected_len: int,
     source: Path,
 ) -> None:
+    """Validate that a metadata value is a list of a specific length.
+
+    Args:
+        key: The field name (for error messages).
+        value: The value to validate.
+        expected_len: The expected list length.
+        source: The source file path (for error messages).
+
+    Raises:
+        ModelLoadError: If *value* is not a list or has the wrong length.
+    """
     if not isinstance(value, list):
         raise ModelLoadError(f"{source.name} field {key!r} must be a list")
     if len(value) != expected_len:

@@ -1,3 +1,9 @@
+"""Command-line interface for AudioToChart.
+
+Provides ``audiotochart generate`` for drum chart generation and
+``audiotochart train`` for model fine-tuning subcommands.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -38,6 +44,17 @@ except ImportError:
 
 
 def _resolve_backend(backend: str) -> type:
+    """Look up a backend class by name, printing errors if unavailable.
+
+    Args:
+        backend: Backend name (e.g. ``"model"``, ``"fake"``, ``"adtof"``).
+
+    Returns:
+        The transcriber class for the backend.
+
+    Raises:
+        SystemExit: If the backend is unknown or its dependencies are missing.
+    """
     cls = BACKENDS.get(backend)
     if cls is None:
         if backend == "adtof":
@@ -57,6 +74,11 @@ def _resolve_backend(backend: str) -> type:
 
 
 def _setup_logging(verbose: bool) -> None:
+    """Configure root and package logging levels.
+
+    Args:
+        verbose: If True, set package logger to DEBUG; otherwise WARNING.
+    """
     logging.basicConfig(
         level=logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
@@ -74,8 +96,33 @@ def _resolve_onset_decoder_dir(
     explicit_dir: Path | None,
     disabled: bool,
 ) -> Path | None:
+    """Resolve the onset decoder model directory for the model backend.
+
+    Args:
+        backend: Backend name. Only ``"model"`` uses the onset decoder.
+        cfg: User configuration dict.
+        explicit_dir: Explicitly provided path from CLI.
+        disabled: True if ``--no-onset-decoder`` was passed.
+
+    Returns:
+        Resolved Path if a valid directory exists, or None.
+    """
     if backend != "model" or disabled:
         return None
+    if explicit_dir is not None:
+        return explicit_dir.expanduser().resolve()
+
+    configured = cfg.get("onset_decoder_dir")
+    if not configured:
+        return None
+    candidate = Path(configured).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+    console.print(
+        "[yellow]Skipping onset decoder: "
+        f"{candidate} was not found; using baseline model output.[/yellow]"
+    )
+    return None
     if explicit_dir is not None:
         return explicit_dir.expanduser().resolve()
 
@@ -110,6 +157,31 @@ def _run_generate(
     quantize_divisor: int | None = 16,
     tom_consistency: bool = False,
 ) -> Path:
+    """Run the full chart generation pipeline with a given backend.
+
+    Resolves the backend, configures the transcriber, and calls
+    ``generate_drum_chart_folder`` with progress reporting.
+
+    Args:
+        source_audio: Path to the input audio file.
+        song_name: Song title.
+        artist_name: Artist name.
+        dest_parent: Output parent directory.
+        charter: Charter name string.
+        bpm: Optional fixed BPM override.
+        from_midi: Optional MIDI file path for MIDI-mode.
+        backend: Backend name (``"model"``, ``"fake"``, ``"adtof"``).
+        separate_drums: Whether to run drum separation.
+        device: PyTorch device string.
+        keep_workdir: Preserve temporary directories.
+        model_dir: Model checkpoint directory (for ``"model"`` backend).
+        onset_decoder_dir: Onset decoder directory (for ``"model"`` backend).
+        quantize_divisor: Quantization grid divisor.
+        tom_consistency: Enable tom consistency post-processing.
+
+    Returns:
+        Path to the generated song folder.
+    """
     transcriber_cls = _resolve_backend(backend)
 
     if separate_drums is None:
@@ -176,6 +248,17 @@ def _run_generate(
 
 
 def _run_interactive(cfg: dict) -> dict:
+    """Run interactive mode, prompting the user for all settings.
+
+    Supports loading saved config or full interactive setup with
+    YouTube search, backend selection, model directory, and quantisation.
+
+    Args:
+        cfg: The loaded user configuration dict.
+
+    Returns:
+        A dict of resolved parameters for ``_run_generate``.
+    """
     load_saved = True
     if config_exists():
         load_saved = Confirm.ask("Load saved settings from last run?", default=True)

@@ -1,3 +1,10 @@
+"""Precomputation of frame-model candidate onsets for decoder training.
+
+Runs a trained frame-level model over training audio to extract candidate
+onset positions and their feature representations, which are saved as
+.npz files for chord-decoder training.
+"""
+
 from __future__ import annotations
 
 import logging

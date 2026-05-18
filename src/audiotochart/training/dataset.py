@@ -1,3 +1,10 @@
+"""Dataset classes and factory functions for drum transcription training.
+
+Provides memory-mapped windowed datasets for frame-level training
+(DrumTranscriptionDataset) and chord-conditioned onset decoder
+training (ChordConditionedDataset), along with splitting utilities.
+"""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +23,17 @@ DEFAULT_MAX_OPEN_ENTRIES = 64
 
 @dataclass(frozen=True, slots=True)
 class SongEntry:
+    """Metadata for a single preprocessed song.
+
+    Attributes:
+        song_hash: Unique 16-character hash identifying the song.
+        spec_path: Path to the precomputed .npy spectrogram file.
+        label_path: Path to the precomputed .npy label matrix file.
+        song_name: Human-readable song name.
+        num_frames: Number of time frames in the spectrogram/labels.
+        source_archive: Name of the archive the song originated from.
+    """
+
     song_hash: str
     spec_path: Path
     label_path: Path
@@ -28,6 +46,11 @@ _BLACKLIST_PATH = Path(__file__).resolve().parent / "blacklist.json"
 
 
 def _close_numpy_handle(value: object) -> None:
+    """Recursively close memory-mapped numpy handles on an array or tuple.
+
+    Args:
+        value: A numpy array or tuple of numpy arrays.
+    """
     if isinstance(value, tuple):
         for item in value:
             _close_numpy_handle(item)
@@ -42,6 +65,11 @@ def _close_numpy_handle(value: object) -> None:
 
 
 def _load_blacklist() -> set[str]:
+    """Load the set of blacklisted song hashes from blacklist.json.
+
+    Returns:
+        An empty set if the file is missing or malformed.
+    """
     if not _BLACKLIST_PATH.is_file():
         return set()
     try:
@@ -56,6 +84,21 @@ def _load_entries(
     *,
     harmonix_only: bool = False,
 ) -> list[SongEntry]:
+    """Load song entries from a cache directory manifest.
+
+    Filters out blacklisted songs and, if harmonix_only is set, excludes
+    RBN community-charted songs.
+
+    Args:
+        cache_dir: Path to the cache directory containing manifest.json.
+        harmonix_only: If True, exclude RBN songs.
+
+    Returns:
+        List of SongEntry objects for songs with both spec and label files.
+
+    Raises:
+        FileNotFoundError: If the manifest file does not exist.
+    """
     manifest_path = cache_dir / "manifest.json"
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
@@ -110,6 +153,13 @@ def _load_entries(
 
 
 class DrumTranscriptionDataset:
+    """Windowed dataset for frame-level drum transcription training.
+
+    Loads memory-mapped spectrogram/label pairs on demand and extracts
+    fixed-size windows at a given stride. Implements LRU caching over
+    the memory-mapped arrays.
+    """
+
     def __init__(
         self,
         entries: list[SongEntry],
@@ -117,6 +167,18 @@ class DrumTranscriptionDataset:
         stride_frames: int = 50,
         max_open_entries: int = DEFAULT_MAX_OPEN_ENTRIES,
     ) -> None:
+        """Initialise the frame-level dataset.
+
+        Args:
+            entries: List of SongEntry objects.
+            window_frames: Number of frames per training window.
+            stride_frames: Stride between consecutive windows.
+            max_open_entries: Maximum number of memory-mapped arrays
+                open simultaneously.
+
+        Raises:
+            ValueError: If max_open_entries is less than 1.
+        """
         if max_open_entries < 1:
             raise ValueError("max_open_entries must be at least 1")
 
@@ -136,15 +198,18 @@ class DrumTranscriptionDataset:
         self._array_cache: OrderedDict[int, tuple[np.ndarray, np.ndarray]] = OrderedDict()
 
     def __len__(self) -> int:
+        """Return the total number of windows in the dataset."""
         return len(self._index)
 
     @staticmethod
     def _close_array(array: np.ndarray) -> None:
+        """Close the memory-mapped handle on a numpy array if present."""
         mmap_obj = getattr(array, "_mmap", None)
         if mmap_obj is not None:
             mmap_obj.close()
 
     def clear_cache(self) -> None:
+        """Clear all cached arrays and close their mmap handles."""
         for spec, labels in self._array_cache.values():
             self._close_array(spec)
             self._close_array(labels)
@@ -172,11 +237,13 @@ class DrumTranscriptionDataset:
         return arrays
 
     def __getstate__(self) -> dict:
+        """Prepare pickle state by clearing the un-picklable array cache."""
         state = self.__dict__.copy()
         state["_array_cache"] = OrderedDict()
         return state
 
     def __del__(self) -> None:
+        """Clean up mmap handles when the dataset is deleted."""
         try:
             if hasattr(self, "_array_cache"):
                 self.clear_cache()
@@ -184,6 +251,17 @@ class DrumTranscriptionDataset:
             pass
 
     def __getitem__(self, idx: int):
+        """Return a single training window of (spectrogram, labels).
+
+        Pads the window if the spectrogram is shorter than the
+        requested window length.
+
+        Args:
+            idx: Window index into the precomputed _index.
+
+        Returns:
+            Tuple of (spec_win, label_win) as float32 arrays.
+        """
         entry_idx, start = self._index[idx]
         spec, labels = self._get_arrays(entry_idx)
 
@@ -253,6 +331,7 @@ class ChordConditionedDataset:
         self._onset_cache: OrderedDict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = OrderedDict()
 
     def __len__(self) -> int:
+        """Return the total number of windows in the dataset."""
         return len(self._index)
 
     def clear_cache(self) -> None:

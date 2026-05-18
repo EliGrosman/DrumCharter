@@ -1,3 +1,11 @@
+"""Song-level tom drum consistency post-processing.
+
+Ensures that low-confidence tom sub-classes (high/mid/low toms) are
+reassigned to match the dominant tom convention detected across the
+entire song. This prevents the model from flipping tom assignments
+mid-song.
+"""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -5,14 +13,28 @@ from collections import Counter
 import numpy as np
 
 TOM_CLASSES = frozenset({3, 5, 7})
+"""Indexes of tom drum classes (high=3, mid=5, low=7) in the 8-class output."""
+
 FPS = 100
+"""Feature frames per second used for frame-to-time conversion."""
 
 ANCHOR_THRESHOLD = 0.7
+"""Activation threshold for a tom hit to be considered an anchor."""
+
 MIN_ANCHORS = 5
+"""Minimum number of anchor hits required to establish a convention."""
+
 MIN_ANCHOR_FRACTION = 0.15
+"""Minimum fraction of anchors a class must represent to be in the convention."""
+
 REASSIGN_THRESHOLD = 0.5
+"""Activation threshold below which a non-convention tom hit is reassigned."""
+
 FILL_IOI_MAX = 0.18
+"""Maximum inter-onset-interval (seconds) for fill detection."""
+
 FILL_MIN_HITS = 4
+"""Minimum tom hits in a row for a sequence to be a fill (skipped by reassign)."""
 
 
 def apply_tom_consistency(
@@ -27,10 +49,25 @@ def apply_tom_consistency(
     fill_ioi_max: float = FILL_IOI_MAX,
     fill_min_hits: int = FILL_MIN_HITS,
 ) -> tuple[list[tuple[float, int]], dict[str, int]]:
-    """Song-level tom consistency: reassign low-confidence tom sub-classes
-    to match the song's dominant tom convention.
+    """Song-level tom consistency post-processing.
 
-    Returns the (possibly modified) onset list and a stats dict for logging.
+    Identifies the dominant tom convention from high-confidence ``anchor``
+    hits, then reassigns low-confidence tom hits outside of fills to match
+    that convention.
+
+    Args:
+        onsets: List of ``(time_sec, class_index)`` pairs.
+        acts: Frame-level activations array of shape ``(frames, 8)``.
+        fps: Feature frames per second. Defaults to 100.
+        anchor_threshold: Minimum activation for a tom hit to be an anchor.
+        min_anchors: Minimum anchor count to establish a convention.
+        min_anchor_fraction: Min fraction of anchors a class needs for convention.
+        reassign_threshold: Activation threshold for skipping reassignment.
+        fill_ioi_max: Max seconds between hits for fill detection.
+        fill_min_hits: Min consecutive hits for a fill region.
+
+    Returns:
+        A tuple of ``(modified_onsets, stats_dict)``.
     """
     stats: dict[str, int | list[int]] = {
         "n_tom_hits": 0,

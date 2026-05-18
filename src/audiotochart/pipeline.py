@@ -1,3 +1,9 @@
+"""Chart generation pipeline.
+
+Orchestrates audio loading, optional drum separation, model transcribing,
+chart document generation, and Clone Hero song folder creation.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -31,11 +37,26 @@ STAGES = [
 ProgressCallback = Callable[[str, str], None]
 
 def _safe_folder_name(s: str) -> str:
-    """Sanitise a string for use as a filesystem directory name."""
-    return " ".join(s.replace("/", "-").replace("\\", "-").split())
+    """Sanitise a string for use as a filesystem directory name.
 
+    Args:
+        s: The input string to sanitise.
+
+    Returns:
+        A filesystem-safe directory name with slashes and backslashes
+        replaced by hyphens and excess whitespace collapsed.
+    """
+    return " ".join(s.replace("/", "-").replace("\\", "-").split())
 def _stream_filename(source_audio: Path) -> str:
-    """Choose a ``song.*`` filename matching the source audio format."""
+    """Choose a ``song.*`` filename matching the source audio format.
+
+    Args:
+        source_audio: Path to the source audio file.
+
+    Returns:
+        A ``song`` filename with the same extension, or ``song.wav``
+        for unsupported formats.
+    """
     ext = source_audio.suffix.lower()
     if ext in (".ogg", ".wav", ".mp3", ".opus", ".flac"):
         return f"song{ext}"
@@ -58,7 +79,34 @@ def generate_drum_chart_folder(
     device: str | None = None,
     keep_workdir: bool = False,
 ) -> Path:
-    """Create a Clone Hero song folder with ``notes.chart``, ``song.ini``, and audio"""
+    """Create a Clone Hero song folder with notes.chart, song.ini, and audio.
+
+    Orchestrates the full chart generation pipeline: tempo detection,
+    optional drum separation, model transcribing (or MIDI import),
+    chart document generation, and output folder creation.
+
+    Args:
+        source_audio: Path to the input audio file.
+        output_parent: Parent directory for the output song folder.
+        song_name: Name of the song.
+        artist_name: Name of the artist.
+        charter: Name of the chart creator. Defaults to ``"AudioToChart (AI)"``.
+        bpm: Beats per minute. Auto-detected if None.
+        resolution: Chart resolution in ticks per quarter note. Defaults to 192.
+        from_midi: Optional path to a MIDI file to use instead of transcribing.
+        quantize_divisor: Quantization grid divisor (e.g. 16 for sixteenth notes).
+        transcriber: Optional DrumTranscriber instance. Uses FakeTranscriber if None.
+        on_progress: Optional callback for progress updates.
+        separate_drums: If True, run drum source separation via Demucs.
+        device: PyTorch device string for separation.
+        keep_workdir: If True, keep the temporary separation directory.
+
+    Returns:
+        Path to the generated Clone Hero song folder.
+
+    Raises:
+        FileNotFoundError: If source_audio or from_midi is not found.
+    """
 
     source_audio = Path(source_audio)
     if not source_audio.is_file():

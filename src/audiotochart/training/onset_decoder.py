@@ -1,3 +1,10 @@
+"""Chord-token onset decoder training for drum transcription.
+
+Trains a transformer-based onset-conditioned decoder that predicts
+chord tokens (combinations of drum classes) conditioned on candidate
+onsets from a frame-level model.
+"""
+
 from __future__ import annotations
 
 import json

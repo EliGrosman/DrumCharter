@@ -20,6 +20,14 @@ from audiotochart.chart.format import ChartDocument, DrumDifficulty, DrumNote
 
 
 def _group_by_tick(notes: list[DrumNote]) -> dict[int, list[DrumNote]]:
+    """Group drum notes by their tick position.
+
+    Args:
+        notes: Drum notes to group.
+
+    Returns:
+        A dict mapping each tick to the list of notes at that tick.
+    """
     groups: dict[int, list[DrumNote]] = {}
     for note in notes:
         groups.setdefault(note.tick, []).append(note)
@@ -27,10 +35,27 @@ def _group_by_tick(notes: list[DrumNote]) -> dict[int, list[DrumNote]]:
 
 
 def _tick_pad_notes(tick_notes: list[DrumNote]) -> set[int]:
+    """Collect pad-only note values at a single tick.
+
+    Args:
+        tick_notes: Notes at one tick.
+
+    Returns:
+        A set of pad note values (excluding cymbal modifiers).
+    """
     return {note.note for note in tick_notes if note.note in PAD_NOTES}
 
 
 def _has_cymbal_at_tick(tick_notes: list[DrumNote], pad: int) -> bool:
+    """Check if a cymbal modifier exists for a given pad at this tick.
+
+    Args:
+        tick_notes: Notes at one tick.
+        pad: The pad note value to check for a matching cymbal.
+
+    Returns:
+        True if a matching cymbal modifier is present.
+    """
     modifier = CYMBAL_BY_PAD.get(pad)
     if modifier is None:
         return False
@@ -44,6 +69,14 @@ def _append_pad_with_cymbal(
     pad: int,
     tick_notes: list[DrumNote],
 ) -> None:
+    """Append a pad note and its optional cymbal modifier at a tick.
+
+    Args:
+        out: Output list to append to.
+        tick: The tick position.
+        pad: The pad note value.
+        tick_notes: All notes at this tick (used to check for cymbal).
+    """
     out.append(DrumNote(tick=tick, note=pad))
     modifier = CYMBAL_BY_PAD.get(pad)
     if modifier is not None and any(note.note == modifier for note in tick_notes):
@@ -55,6 +88,19 @@ def _thin_notes(
     min_gap: int,
     priority: set[int] | None = None,
 ) -> list[DrumNote]:
+    """Remove notes that are too close together on the same pad.
+
+    Preserves cymbal modifiers for surviving pads and keeps priority
+    pads regardless of gap.
+
+    Args:
+        notes: Input drum notes.
+        min_gap: Minimum tick gap between consecutive notes on the same pad.
+        priority: Set of pad note values to always keep.
+
+    Returns:
+        Filtered and sorted drum notes.
+    """
     last_tick_by_pad: dict[int, int] = {}
     out: list[DrumNote] = []
 
@@ -81,11 +127,34 @@ def _thin_notes(
 
 
 def _generate_hard(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
+    """Generate Hard pro drums from Expert by thinning dense passages.
+
+    Removes notes on the same pad that are closer than a thirty-second note.
+
+    Args:
+        expert: Expert difficulty drum notes.
+        resolution: Ticks per beat.
+
+    Returns:
+        Hard difficulty drum notes.
+    """
     thirty_second = resolution // 8
     return _thin_notes(expert, min_gap=thirty_second)
 
 
 def _generate_medium(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
+    """Generate Medium pro drums from Expert.
+
+    Keeps kick, snare, and yellow-pad-with-cymbal (hi-hat/ride) hits,
+    then thins to an eighth-note minimum gap.
+
+    Args:
+        expert: Expert difficulty drum notes.
+        resolution: Ticks per beat.
+
+    Returns:
+        Medium difficulty drum notes.
+    """
     eighth = resolution // 2
     groups = _group_by_tick(expert)
     kept: list[DrumNote] = []
@@ -109,6 +178,18 @@ def _generate_medium(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
 
 
 def _generate_easy(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
+    """Generate Easy pro drums from Expert.
+
+    Keeps only kick on beats 1/3 and snare on beats 2/4, with hi-hat
+    on every quarter note. Reduces density to quarter-note minimum gaps.
+
+    Args:
+        expert: Expert difficulty drum notes.
+        resolution: Ticks per beat.
+
+    Returns:
+        Easy difficulty drum notes.
+    """
     quarter = resolution
     groups = _group_by_tick(expert)
     kept: list[DrumNote] = []
