@@ -17,7 +17,7 @@ from rich.prompt import Confirm, Prompt
 from rich.status import Status
 
 from audiotochart.config import DEFAULT_CHARTER, config_exists, load_config, save_config
-from audiotochart.device import VALID_TORCH_DEVICES, resolve_torch_device
+from audiotochart.device import DeviceError, VALID_TORCH_DEVICES, resolve_torch_device
 from audiotochart.download import download_audio_search
 from audiotochart.inference.fake import FakeTranscriber
 from audiotochart.pipeline import STAGES, generate_drum_chart_folder
@@ -187,13 +187,18 @@ def _run_generate(
     if separate_drums is None:
         separate_drums = (backend == "model")
 
+    resolved_device = device
+    if backend == "model" or separate_drums:
+        resolved_device = resolve_torch_device(device, purpose="chart generation")
+        console.print(f"[bold]Device[/bold]: {resolved_device}")
+
     if backend == "model":
         if model_dir is None:
             console.print("[red]Model backend requires --model-dir[/red]")
             raise SystemExit(1)
         transcriber = transcriber_cls(
             model_dir=model_dir,
-            device=device,
+            device=resolved_device,
             tom_consistency=tom_consistency,
             onset_decoder_dir=onset_decoder_dir,
         )
@@ -226,7 +231,7 @@ def _run_generate(
             from_midi=from_midi,
             transcriber=transcriber,
             separate_drums=separate_drums,
-            device=device,
+            device=resolved_device,
             keep_workdir=keep_workdir,
             quantize_divisor=quantize_divisor,
             on_progress=_on_progress,
@@ -259,7 +264,14 @@ def _run_interactive(cfg: dict) -> dict:
     Returns:
         A dict of resolved parameters for ``_run_generate``.
     """
-    load_saved = True
+    configured_device = cfg.get("device", "auto")
+    try:
+        startup_device = resolve_torch_device(configured_device, purpose="chart generation")
+        console.print(f"[bold]Device[/bold]: {startup_device}")
+    except DeviceError:
+        console.print(f"[bold]Device[/bold]: unavailable (configured: {configured_device})")
+
+    load_saved = False
     if config_exists():
         load_saved = Confirm.ask("Load saved settings from last run?", default=True)
 

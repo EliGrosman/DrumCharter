@@ -919,6 +919,160 @@ def test_interactive_generate_confirms_before_decoder_path(
     assert params["_use_onset_decoder"] is True
 
 
+def test_interactive_generate_without_saved_config_runs_full_setup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from audiotochart.cli import _run_interactive
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = tmp_path / "model"
+    output_dir = tmp_path / "out"
+    events: list[str] = []
+
+    def _prompt(cls, prompt: str, *args, **kwargs) -> str:
+        events.append(f"prompt:{prompt}")
+        responses = {
+            "Select": "1",
+            "Audio file path": str(audio),
+            "Song name": "Song",
+            "Artist name": "Artist",
+            "Backend": "model",
+            "Model directory": str(model_dir),
+            "Device": "auto",
+            "Quantization": "1/16",
+            "Output directory": str(output_dir),
+        }
+        return responses[prompt]
+
+    def _confirm(cls, prompt: str, *args, **kwargs) -> bool:
+        events.append(f"confirm:{prompt}")
+        if prompt == "Use onset decoder?":
+            return False
+        if prompt == "Separate drums with Demucs?":
+            return True
+        if prompt == "Enable tom consistency?":
+            return False
+        raise AssertionError(f"Unexpected confirm prompt: {prompt}")
+
+    monkeypatch.setattr("audiotochart.cli.config_exists", lambda: False)
+    monkeypatch.setattr("audiotochart.cli.Prompt.ask", classmethod(_prompt))
+    monkeypatch.setattr("audiotochart.cli.Confirm.ask", classmethod(_confirm))
+
+    params = _run_interactive({
+        "backend": "model",
+        "model_dir": "",
+        "onset_decoder_dir": "",
+        "separate_drums": True,
+        "device": "auto",
+        "quantize": "1/16",
+        "tom_consistency": False,
+        "output_dir": ".",
+    })
+
+    assert "confirm:Load saved settings from last run?" not in events
+    assert "prompt:Backend" in events
+    assert params["backend"] == "model"
+    assert params["model_dir"] == model_dir.resolve()
+    assert params["_settings_changed"] is True
+
+
+def test_interactive_shows_device_before_saved_settings_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from audiotochart.cli import _run_interactive
+
+    events: list[str] = []
+
+    def _print(*args, **kwargs) -> None:
+        if args:
+            events.append(f"print:{args[0]}")
+
+    def _prompt(cls, prompt: str, *args, **kwargs) -> str:
+        events.append(f"prompt:{prompt}")
+        responses = {
+            "Select": "2",
+            "Song name": "Song",
+            "Artist name": "Artist",
+        }
+        return responses[prompt]
+
+    def _confirm(cls, prompt: str, *args, **kwargs) -> bool:
+        events.append(f"confirm:{prompt}")
+        if prompt == "Load saved settings from last run?":
+            return True
+        raise AssertionError(f"Unexpected confirm prompt: {prompt}")
+
+    monkeypatch.setattr("audiotochart.cli.config_exists", lambda: True)
+    monkeypatch.setattr("audiotochart.cli.resolve_torch_device", lambda device, *, purpose: "cpu")
+    monkeypatch.setattr("audiotochart.cli.console.print", _print)
+    monkeypatch.setattr("audiotochart.cli.Prompt.ask", classmethod(_prompt))
+    monkeypatch.setattr("audiotochart.cli.Confirm.ask", classmethod(_confirm))
+
+    _run_interactive({
+        "backend": "model",
+        "model_dir": "",
+        "onset_decoder_dir": "",
+        "separate_drums": True,
+        "device": "auto",
+        "quantize": "1/16",
+        "tom_consistency": False,
+        "output_dir": ".",
+    })
+
+    assert events.index("print:[bold]Device[/bold]: cpu") < events.index(
+        "confirm:Load saved settings from last run?"
+    )
+
+
+def test_run_generate_displays_resolved_device_and_passes_it_through(
+    tmp_path: Path,
+) -> None:
+    from audiotochart.cli import _run_generate
+
+    audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    seen: dict[str, object] = {}
+
+    class FakeTranscriber:
+        def __init__(self, *, model_dir, device, tom_consistency, onset_decoder_dir):
+            seen["model_dir"] = model_dir
+            seen["device"] = device
+            seen["tom_consistency"] = tom_consistency
+            seen["onset_decoder_dir"] = onset_decoder_dir
+
+    def _fake_generate(**kwargs):
+        seen["pipeline_device"] = kwargs["device"]
+        seen["transcriber"] = kwargs["transcriber"]
+        return tmp_path / "out"
+
+    with patch("audiotochart.cli._resolve_backend", return_value=FakeTranscriber), patch(
+        "audiotochart.cli.resolve_torch_device", return_value="cpu"
+    ) as mock_resolve, patch(
+        "audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate
+    ), patch("audiotochart.cli.console.print") as mock_print:
+        out = _run_generate(
+            source_audio=audio,
+            song_name="Song",
+            artist_name="Artist",
+            dest_parent=tmp_path,
+            charter="Test Charter",
+            bpm=120.0,
+            from_midi=None,
+            backend="model",
+            separate_drums=False,
+            device="auto",
+            model_dir=model_dir,
+        )
+
+    assert out == tmp_path / "out"
+    mock_resolve.assert_called_once_with("auto", purpose="chart generation")
+    assert seen["device"] == "cpu"
+    assert seen["pipeline_device"] == "cpu"
+    mock_print.assert_any_call("[bold]Device[/bold]: cpu")
+
+
 def test_cli_no_onset_decoder_overrides_configured_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
