@@ -16,6 +16,11 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.status import Status
 
+from audiotochart.branding import (
+    print_branding,
+    print_generated_chart,
+    print_generation_summary,
+)
 from audiotochart.config import DEFAULT_CHARTER, config_exists, load_config, save_config
 from audiotochart.device import DeviceError, VALID_TORCH_DEVICES, resolve_torch_device
 from audiotochart.download import download_audio_search
@@ -264,12 +269,7 @@ def _run_interactive(cfg: dict) -> dict:
     Returns:
         A dict of resolved parameters for ``_run_generate``.
     """
-    configured_device = cfg.get("device", "auto")
-    try:
-        startup_device = resolve_torch_device(configured_device, purpose="chart generation")
-        console.print(f"[bold]Device[/bold]: {startup_device}")
-    except DeviceError:
-        console.print(f"[bold]Device[/bold]: unavailable (configured: {configured_device})")
+    print_branding(console)
 
     load_saved = False
     if config_exists():
@@ -504,6 +504,15 @@ def generate_cmd(
             else:
                 audio_file = params["source_audio"]
 
+            print_generation_summary(
+                console,
+                song_name=params["song_name"],
+                artist_name=params["artist_name"],
+                backend=params["backend"],
+                separate_drums=params["separate_drums"],
+                quantize=params["quantize"],
+                output_dir=params["output_dir"],
+            )
             folder = _run_generate(
                 source_audio=audio_file,
                 song_name=params["song_name"],
@@ -536,7 +545,12 @@ def generate_cmd(
                     "output_dir": str(params["output_dir"]),
                 })
 
-        console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
+        print_generated_chart(
+            console,
+            song_name=params["song_name"],
+            artist_name=params["artist_name"],
+            folder=folder,
+        )
         return
 
     dest = output or Path.cwd()
@@ -598,7 +612,12 @@ def generate_cmd(
                 quantize_divisor=QUANTIZE_CHOICES[quantize],
                 tom_consistency=tom_consistency,
             )
-            console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
+            print_generated_chart(
+                console,
+                song_name=song_name,
+                artist_name=artist_name,
+                folder=folder,
+            )
             return
 
         assert audio is not None
@@ -622,7 +641,12 @@ def generate_cmd(
             quantize_divisor=QUANTIZE_CHOICES[quantize],
             tom_consistency=tom_consistency,
         )
-        console.print(f"[bold green]Generated chart[/bold green] -> {folder}")
+        print_generated_chart(
+            console,
+            song_name=song_name,
+            artist_name=artist_name,
+            folder=folder,
+        )
 
 # ---------------------------------------------------------------------------
 # Training CLI (optional: uv sync --extra training)
