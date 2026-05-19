@@ -125,21 +125,8 @@ def _resolve_onset_decoder_dir(
         return candidate.resolve()
     console.print(
         "[yellow]Skipping onset decoder: "
-        f"{candidate} was not found; using baseline model output.[/yellow]"
-    )
-    return None
-    if explicit_dir is not None:
-        return explicit_dir.expanduser().resolve()
-
-    configured = cfg.get("onset_decoder_dir")
-    if not configured:
-        return None
-    candidate = Path(configured).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-    console.print(
-        "[yellow]Skipping onset decoder: "
-        f"{candidate} was not found; using baseline model output.[/yellow]"
+        f"{candidate} was not found; using baseline model output.[/yellow]",
+        soft_wrap=True,
     )
     return None
 
@@ -194,7 +181,14 @@ def _run_generate(
 
     resolved_device = device
     if backend == "model" or separate_drums:
-        resolved_device = resolve_torch_device(device, purpose="chart generation")
+        try:
+            resolved_device = resolve_torch_device(device, purpose="chart generation")
+        except DeviceError as e:
+            message = str(e)
+            if backend == "model":
+                message = message.replace("chart generation", "model backend", 1)
+            console.print(f"[red]{message}[/red]", soft_wrap=True)
+            raise SystemExit(1) from e
         console.print(f"[bold]Device[/bold]: {resolved_device}")
 
     if backend == "model":
@@ -270,6 +264,18 @@ def _run_interactive(cfg: dict) -> dict:
         A dict of resolved parameters for ``_run_generate``.
     """
     print_branding(console)
+
+    preview_backend = cfg.get("backend", "model")
+    preview_separate_drums = cfg.get("separate_drums", True)
+    if preview_backend == "model" or preview_separate_drums:
+        try:
+            preview_device = resolve_torch_device(
+                cfg.get("device", "auto"),
+                purpose="chart generation",
+            )
+            console.print(f"[bold]Device[/bold]: {preview_device}")
+        except DeviceError as e:
+            console.print(f"[yellow]{e}[/yellow]")
 
     load_saved = False
     if config_exists():
