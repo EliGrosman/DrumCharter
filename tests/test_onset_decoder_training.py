@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("torch")
 import torch
 
-from audiotochart.training.onset_decoder import (
+from drumcharter.training.onset_decoder import (
     ChordDecoderTrainConfig,
     run_onset_decoder_training,
 )
@@ -104,19 +104,19 @@ def test_hybrid_cqs_checkpoint_selection_uses_hybrid_metric(
         return FakeReport(scores.pop(0))
 
     monkeypatch.setattr(
-        "audiotochart.training.onset_decoder.build_onset_conditioned_model",
+        "drumcharter.training.onset_decoder.build_onset_conditioned_model",
         fake_build_model,
     )
     monkeypatch.setattr(
-        "audiotochart.inference.checkpoint.load_model_bundle",
+        "drumcharter.inference.checkpoint.load_model_bundle",
         fake_load_model_bundle,
     )
     monkeypatch.setattr(
-        "audiotochart.training.chord_hybrid_eval.prepare_chord_hybrid_eval_songs",
+        "drumcharter.training.chord_hybrid_eval.prepare_chord_hybrid_eval_songs",
         lambda *_args, **_kwargs: [object()],
     )
     monkeypatch.setattr(
-        "audiotochart.training.chord_hybrid_eval.evaluate_prepared_chord_hybrid",
+        "drumcharter.training.chord_hybrid_eval.evaluate_prepared_chord_hybrid",
         fake_evaluate,
     )
 

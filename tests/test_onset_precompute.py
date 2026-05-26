@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("torch")
 import torch
 
-from audiotochart.training.onset_precompute import (
+from drumcharter.training.onset_precompute import (
     OnsetPrecomputeConfig,
     run_precompute_onsets,
 )
@@ -59,7 +59,7 @@ def test_precompute_onsets_writes_npz_schema(monkeypatch, tmp_path: Path) -> Non
         )
 
     monkeypatch.setattr(
-        "audiotochart.inference.checkpoint.load_model_bundle",
+        "drumcharter.inference.checkpoint.load_model_bundle",
         fake_load_model_bundle,
     )
 

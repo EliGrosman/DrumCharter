@@ -9,7 +9,7 @@ from pathlib import Path
 import chparse
 import pytest
 
-from audiotochart.chart import (
+from drumcharter.chart import (
     ChartDocument,
     DrumDifficulty,
     DrumNote,
@@ -54,7 +54,7 @@ def test_write_chart_matches_design_shape() -> None:
         song=SongMetadata(
             name="Enter Sandman",
             artist="Metallica",
-            charter="AudioToChart (AI)",
+            charter="DrumCharter (AI)",
             music_stream="song.ogg",
         ),
         sync=[

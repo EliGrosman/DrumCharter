@@ -5,13 +5,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from audiotochart.onset_decoder_common import (
+from drumcharter.onset_decoder_common import (
     CHORD_BOS,
     CHORD_NULL,
     build_chord_vocabulary,
     classes_to_mask,
 )
-from audiotochart.training.dataset import ChordConditionedDataset, DrumTranscriptionDataset, SongEntry
+from drumcharter.training.dataset import ChordConditionedDataset, DrumTranscriptionDataset, SongEntry
 
 
 def _entry(tmp_path: Path, idx: int, *, frames: int = 8) -> SongEntry:

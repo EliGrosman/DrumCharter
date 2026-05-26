@@ -10,8 +10,8 @@ import pytest
 
 pytest.importorskip("torch")
 
-from audiotochart.drums import DrumHit
-from audiotochart.inference.checkpoint import (
+from drumcharter.drums import DrumHit
+from drumcharter.inference.checkpoint import (
     ModelLoadError,
     ModelBundle,
     PRO8_ARCHITECTURE,
@@ -19,7 +19,7 @@ from audiotochart.inference.checkpoint import (
     PRO8_LABELS,
     _build_model_for_architecture,
 )
-from audiotochart.inference.model import (
+from drumcharter.inference.model import (
     ModelTranscriber,
     ModelTranscriberError,
     _compute_adtof_spectrogram,
@@ -269,7 +269,7 @@ def test_transcriber_auto_device_resolves_before_loading(monkeypatch, tmp_path: 
     model_dir.mkdir()
 
     bundle = ModelBundle(model=object(), labels=[], device="cpu")
-    with patch("audiotochart.inference.model.load_model_bundle", return_value=bundle) as mock_load:
+    with patch("drumcharter.inference.model.load_model_bundle", return_value=bundle) as mock_load:
         t = ModelTranscriber(model_dir=model_dir, device="auto")
         assert t._ensure_loaded() is bundle
 
@@ -564,7 +564,7 @@ def test_tom_consistency_is_off_by_default(tmp_path: Path) -> None:
 
     with (
         patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle),
-        patch("audiotochart.inference.tom_consistency.apply_tom_consistency") as apply_tc,
+        patch("drumcharter.inference.tom_consistency.apply_tom_consistency") as apply_tc,
     ):
         t = ModelTranscriber(model_dir=model_dir)
         audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
@@ -595,7 +595,7 @@ def test_tom_consistency_opt_in_runs_for_pro8_labels(tmp_path: Path) -> None:
 
     with (
         patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle),
-        patch("audiotochart.inference.tom_consistency.apply_tom_consistency") as apply_tc,
+        patch("drumcharter.inference.tom_consistency.apply_tom_consistency") as apply_tc,
     ):
         apply_tc.side_effect = lambda onsets, acts, **_: (
             onsets,
@@ -632,7 +632,7 @@ def test_tom_consistency_skips_custom_8_class_models(tmp_path: Path) -> None:
 
     with (
         patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle),
-        patch("audiotochart.inference.tom_consistency.apply_tom_consistency") as apply_tc,
+        patch("drumcharter.inference.tom_consistency.apply_tom_consistency") as apply_tc,
     ):
         t = ModelTranscriber(model_dir=model_dir, tom_consistency=True)
         audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
@@ -650,7 +650,7 @@ def test_tom_consistency_skips_custom_8_class_models(tmp_path: Path) -> None:
 def test_cli_backend_model_uses_default_model_dir(tmp_path: Path) -> None:
     """When --model-dir is omitted, the default bundled path is used."""
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=2.0)
     runner = CliRunner()
@@ -666,7 +666,7 @@ def test_cli_backend_model_uses_default_model_dir(tmp_path: Path) -> None:
 
 def test_cli_backend_model_load_error_is_clean(tmp_path: Path) -> None:
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=2.0)
     model_dir = tmp_path / "broken-model"
@@ -688,7 +688,7 @@ def test_cli_backend_model_load_error_is_clean(tmp_path: Path) -> None:
 
 def test_cli_invalid_device_is_rejected() -> None:
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     runner = CliRunner()
     result = runner.invoke(cli, ["generate", "--device", "cdua"])
@@ -701,7 +701,7 @@ def test_cli_invalid_device_is_rejected() -> None:
 def test_cli_explicit_cuda_unavailable_is_clean(monkeypatch, tmp_path: Path) -> None:
     import torch
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
@@ -727,7 +727,7 @@ def test_cli_explicit_cuda_unavailable_is_clean(monkeypatch, tmp_path: Path) -> 
 
 def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     runner = CliRunner()
     result = runner.invoke(cli, ["generate", "--help"])
@@ -748,7 +748,7 @@ def test_cli_backend_model_help_shows_option(tmp_path: Path) -> None:
 
 def test_cli_train_help_shows_onset_decoder_commands() -> None:
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     runner = CliRunner()
     result = runner.invoke(cli, ["train", "--help"])
@@ -760,7 +760,7 @@ def test_cli_train_help_shows_onset_decoder_commands() -> None:
 
 def test_cli_train_onset_decoder_help_shows_hybrid_selection_options() -> None:
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     runner = CliRunner()
     result = runner.invoke(cli, ["train", "onset-decoder", "--help"])
@@ -776,7 +776,7 @@ def test_cli_model_backend_defaults_to_separation(monkeypatch, tmp_path: Path) -
     """Model backend should default to separate_drums=True."""
     from click.testing import CliRunner
     from unittest.mock import patch
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
     model_dir = _make_model_dir(tmp_path)
@@ -789,7 +789,7 @@ def test_cli_model_backend_defaults_to_separation(monkeypatch, tmp_path: Path) -
         raise SystemExit(0)
 
     runner = CliRunner()
-    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+    with patch("drumcharter.cli.generate_drum_chart_folder", side_effect=_fake_generate):
         runner.invoke(cli, [
             "generate", str(audio),
             "--backend", "model",
@@ -805,7 +805,7 @@ def test_cli_fake_backend_defaults_to_no_separation(tmp_path: Path) -> None:
     """Fake backend should default to separate_drums=False"""
     from click.testing import CliRunner
     from unittest.mock import patch
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
 
@@ -817,7 +817,7 @@ def test_cli_fake_backend_defaults_to_no_separation(tmp_path: Path) -> None:
         raise SystemExit(0)
 
     runner = CliRunner()
-    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+    with patch("drumcharter.cli.generate_drum_chart_folder", side_effect=_fake_generate):
         runner.invoke(cli, [
             "generate", str(audio),
             "--backend", "fake",
@@ -831,7 +831,7 @@ def test_cli_fake_backend_defaults_to_no_separation(tmp_path: Path) -> None:
 def test_cli_explicit_onset_decoder_dir_passes_to_model(tmp_path: Path) -> None:
     from click.testing import CliRunner
     from unittest.mock import patch
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
     model_dir = _make_model_dir(tmp_path)
@@ -845,7 +845,7 @@ def test_cli_explicit_onset_decoder_dir_passes_to_model(tmp_path: Path) -> None:
         raise SystemExit(0)
 
     runner = CliRunner()
-    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+    with patch("drumcharter.cli.generate_drum_chart_folder", side_effect=_fake_generate):
         runner.invoke(cli, [
             "generate", str(audio),
             "--backend", "model",
@@ -863,7 +863,7 @@ def test_interactive_generate_confirms_before_decoder_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from audiotochart.cli import _run_interactive
+    from drumcharter.cli import _run_interactive
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
     model_dir = tmp_path / "model"
@@ -899,9 +899,9 @@ def test_interactive_generate_confirms_before_decoder_path(
             return False
         raise AssertionError(f"Unexpected confirm prompt: {prompt}")
 
-    monkeypatch.setattr("audiotochart.cli.config_exists", lambda: True)
-    monkeypatch.setattr("audiotochart.cli.Prompt.ask", classmethod(_prompt))
-    monkeypatch.setattr("audiotochart.cli.Confirm.ask", classmethod(_confirm))
+    monkeypatch.setattr("drumcharter.cli.config_exists", lambda: True)
+    monkeypatch.setattr("drumcharter.cli.Prompt.ask", classmethod(_prompt))
+    monkeypatch.setattr("drumcharter.cli.Confirm.ask", classmethod(_confirm))
 
     params = _run_interactive({
         "backend": "model",
@@ -923,7 +923,7 @@ def test_interactive_generate_without_saved_config_runs_full_setup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from audiotochart.cli import _run_interactive
+    from drumcharter.cli import _run_interactive
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
     model_dir = tmp_path / "model"
@@ -955,9 +955,9 @@ def test_interactive_generate_without_saved_config_runs_full_setup(
             return False
         raise AssertionError(f"Unexpected confirm prompt: {prompt}")
 
-    monkeypatch.setattr("audiotochart.cli.config_exists", lambda: False)
-    monkeypatch.setattr("audiotochart.cli.Prompt.ask", classmethod(_prompt))
-    monkeypatch.setattr("audiotochart.cli.Confirm.ask", classmethod(_confirm))
+    monkeypatch.setattr("drumcharter.cli.config_exists", lambda: False)
+    monkeypatch.setattr("drumcharter.cli.Prompt.ask", classmethod(_prompt))
+    monkeypatch.setattr("drumcharter.cli.Confirm.ask", classmethod(_confirm))
 
     params = _run_interactive({
         "backend": "model",
@@ -980,7 +980,7 @@ def test_interactive_generate_without_saved_config_runs_full_setup(
 def test_interactive_shows_device_before_saved_settings_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from audiotochart.cli import _run_interactive
+    from drumcharter.cli import _run_interactive
 
     events: list[str] = []
 
@@ -1003,11 +1003,11 @@ def test_interactive_shows_device_before_saved_settings_prompt(
             return True
         raise AssertionError(f"Unexpected confirm prompt: {prompt}")
 
-    monkeypatch.setattr("audiotochart.cli.config_exists", lambda: True)
-    monkeypatch.setattr("audiotochart.cli.resolve_torch_device", lambda device, *, purpose: "cpu")
-    monkeypatch.setattr("audiotochart.cli.console.print", _print)
-    monkeypatch.setattr("audiotochart.cli.Prompt.ask", classmethod(_prompt))
-    monkeypatch.setattr("audiotochart.cli.Confirm.ask", classmethod(_confirm))
+    monkeypatch.setattr("drumcharter.cli.config_exists", lambda: True)
+    monkeypatch.setattr("drumcharter.cli.resolve_torch_device", lambda device, *, purpose: "cpu")
+    monkeypatch.setattr("drumcharter.cli.console.print", _print)
+    monkeypatch.setattr("drumcharter.cli.Prompt.ask", classmethod(_prompt))
+    monkeypatch.setattr("drumcharter.cli.Confirm.ask", classmethod(_confirm))
 
     _run_interactive({
         "backend": "model",
@@ -1028,7 +1028,7 @@ def test_interactive_shows_device_before_saved_settings_prompt(
 def test_run_generate_displays_resolved_device_and_passes_it_through(
     tmp_path: Path,
 ) -> None:
-    from audiotochart.cli import _run_generate
+    from drumcharter.cli import _run_generate
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
     model_dir = tmp_path / "model"
@@ -1047,11 +1047,11 @@ def test_run_generate_displays_resolved_device_and_passes_it_through(
         seen["transcriber"] = kwargs["transcriber"]
         return tmp_path / "out"
 
-    with patch("audiotochart.cli._resolve_backend", return_value=FakeTranscriber), patch(
-        "audiotochart.cli.resolve_torch_device", return_value="cpu"
+    with patch("drumcharter.cli._resolve_backend", return_value=FakeTranscriber), patch(
+        "drumcharter.cli.resolve_torch_device", return_value="cpu"
     ) as mock_resolve, patch(
-        "audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate
-    ), patch("audiotochart.cli.console.print") as mock_print:
+        "drumcharter.cli.generate_drum_chart_folder", side_effect=_fake_generate
+    ), patch("drumcharter.cli.console.print") as mock_print:
         out = _run_generate(
             source_audio=audio,
             song_name="Song",
@@ -1079,11 +1079,11 @@ def test_cli_no_onset_decoder_overrides_configured_default(
 ) -> None:
     from click.testing import CliRunner
     from unittest.mock import patch
-    from audiotochart.cli import cli
-    from audiotochart.config import save_config
+    from drumcharter.cli import cli
+    from drumcharter.config import save_config
 
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path / "cfg")
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "cfg" / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path / "cfg")
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "cfg" / "config.json")
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
     model_dir = _make_model_dir(tmp_path)
@@ -1103,7 +1103,7 @@ def test_cli_no_onset_decoder_overrides_configured_default(
         raise SystemExit(0)
 
     runner = CliRunner()
-    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+    with patch("drumcharter.cli.generate_drum_chart_folder", side_effect=_fake_generate):
         runner.invoke(cli, [
             "generate", str(audio),
             "--backend", "model",
@@ -1122,11 +1122,11 @@ def test_cli_missing_default_onset_decoder_dir_does_not_block_baseline(
 ) -> None:
     from click.testing import CliRunner
     from unittest.mock import patch
-    from audiotochart.cli import cli
-    from audiotochart.config import save_config
+    from drumcharter.cli import cli
+    from drumcharter.config import save_config
 
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path / "cfg")
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "cfg" / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path / "cfg")
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "cfg" / "config.json")
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2)
     model_dir = _make_model_dir(tmp_path)
@@ -1144,7 +1144,7 @@ def test_cli_missing_default_onset_decoder_dir_does_not_block_baseline(
         raise SystemExit(0)
 
     runner = CliRunner()
-    with patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_fake_generate):
+    with patch("drumcharter.cli.generate_drum_chart_folder", side_effect=_fake_generate):
         result = runner.invoke(cli, [
             "generate", str(audio),
             "--backend", "model",
@@ -1160,7 +1160,7 @@ def test_cli_missing_default_onset_decoder_dir_does_not_block_baseline(
 
 def test_cli_explicit_bad_onset_decoder_path_is_clean(tmp_path: Path) -> None:
     from click.testing import CliRunner
-    from audiotochart.cli import cli
+    from drumcharter.cli import cli
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=0.2, sample_rate=4000)
     model_dir = _make_model_dir(
@@ -1188,4 +1188,80 @@ def test_cli_explicit_bad_onset_decoder_path_is_clean(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "Missing config.json" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_youtube_no_results_is_clean(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from drumcharter.cli import cli
+    from drumcharter.download import DownloadSearchNoResults
+
+    runner = CliRunner()
+    with patch(
+        "drumcharter.cli.download_audio_search",
+        side_effect=DownloadSearchNoResults('No results found on YouTube for "Helmet Iron Head"'),
+    ):
+        result = runner.invoke(cli, [
+            "generate",
+            "--backend", "fake",
+            "--song", "Iron Head",
+            "--artist", "Helmet",
+            "-o", str(tmp_path / "out"),
+        ])
+
+    assert result.exit_code != 0
+    assert 'No results found on YouTube for "Helmet Iron Head"' in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_youtube_download_error_shows_verbose_hint(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from drumcharter.cli import cli
+    from drumcharter.download import DownloadError
+
+    runner = CliRunner()
+    with patch(
+        "drumcharter.cli.download_audio_search",
+        side_effect=DownloadError("yt-dlp failed for query 'Helmet Iron Head': Sign in to confirm you're not a bot"),
+    ):
+        result = runner.invoke(cli, [
+            "generate",
+            "--backend", "fake",
+            "--song", "Iron Head",
+            "--artist", "Helmet",
+            "-o", str(tmp_path / "out"),
+        ])
+
+    assert result.exit_code != 0
+    assert "YouTube search/download failed." in result.output
+    assert "--verbose" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_youtube_download_error_shows_details_with_verbose(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+    from unittest.mock import patch
+    from drumcharter.cli import cli
+    from drumcharter.download import DownloadError
+
+    message = "yt-dlp failed for query 'Helmet Iron Head': Sign in to confirm you're not a bot"
+    runner = CliRunner()
+    with patch(
+        "drumcharter.cli.download_audio_search",
+        side_effect=DownloadError(message),
+    ):
+        result = runner.invoke(cli, [
+            "generate",
+            "--backend", "fake",
+            "--song", "Iron Head",
+            "--artist", "Helmet",
+            "--verbose",
+            "-o", str(tmp_path / "out"),
+        ])
+
+    assert result.exit_code != 0
+    assert "YouTube search/download failed." in result.output
+    assert message in result.output
     assert "Traceback" not in result.output

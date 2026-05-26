@@ -1,13 +1,13 @@
-# AudioToChart
+# DrumCharter
 
-AudioToChart generates Clone Hero drum chart folders from any audio file.
+DrumCharter generates Clone Hero drum chart folders from any audio file.
 For best quality, use the fine-tuned model backend with automatic drum separation.
 
 ## Quickstart
 
 ```bash
 uv sync --extra ai
-uv run audiotochart generate ./song.wav --song "Song Name" --artist "Artist" -o ./out
+uv run drumcharter generate ./song.wav --song "Song Name" --artist "Artist" -o ./out
 ```
 
 The default model directory is `models/finetuned`. This folder is gitignored
@@ -25,7 +25,7 @@ required; Demucs works on CPU, just slower.
 
 If Demucs is unavailable or too slow, skip it:
 ```bash
-uv run audiotochart generate ./song.wav --song "Song Name" --artist "Artist" --no-separate-drums -o ./out
+uv run drumcharter generate ./song.wav --song "Song Name" --artist "Artist" --no-separate-drums -o ./out
 ```
 
 ## Output
@@ -59,7 +59,7 @@ Detailed documentation is available under `docs/`:
 
 ## Model Bundle
 
-AudioToChart looks for the local fine-tuned model at:
+DrumCharter looks for the local fine-tuned model at:
 
 ```text
 models/finetuned/
@@ -79,7 +79,7 @@ for this standalone repo the standard location is `models/finetuned`.
 
 ## Optional Chord Onset Decoder
 
-AudioToChart currently supports the CloneHero-ChartGen chord decoder path, such
+DrumCharter currently supports the CloneHero-ChartGen chord decoder path, such
 as a `runs/chord_decoder_phase3b_physical_v1`-style bundle copied to:
 
 ```text
@@ -106,7 +106,7 @@ uv run pytest
 For production-quality charts:
 
 ```bash
-uv run audiotochart generate ./song.wav \
+uv run drumcharter generate ./song.wav \
     --song "Song Name" --artist "Artist Name" \
     --backend model --model-dir models/finetuned \
     --onset-decoder-dir models/onset_decoder \
@@ -122,7 +122,7 @@ uv run audiotochart generate ./song.wav \
 ### Fast Path (no AI dependencies)
 
 ```bash
-uv run audiotochart generate ./song.wav --song "Test" --artist "Test" --backend fake -o ./out
+uv run drumcharter generate ./song.wav --song "Test" --artist "Test" --backend fake -o ./out
 ```
 
 The `fake` backend generates a deterministic rock backbeat without any AI
@@ -131,7 +131,7 @@ dependencies. Useful for testing Clone Hero output format with no install fricti
 For development, you can drive the drum chart from a General MIDI drum file:
 
 ```bash
-uv run audiotochart generate ./song.wav --from-midi ./drums.mid --song "Test Song" --artist "Test Artist" -o ./out
+uv run drumcharter generate ./song.wav --from-midi ./drums.mid --song "Test Song" --artist "Test Artist" -o ./out
 ```
 
 ## Troubleshooting
@@ -144,11 +144,11 @@ uv run audiotochart generate ./song.wav --from-midi ./drums.mid --song "Test Son
 
 ## Training
 
-AudioToChart includes a full training pipeline for fine-tuning the ADTOF Frame RNN and training the chord onset decoder. See **[docs/training.md](docs/training.md)** for detailed instructions.
+DrumCharter includes a full training pipeline for fine-tuning the ADTOF Frame RNN and training the chord onset decoder. See **[docs/training.md](docs/training.md)** for detailed instructions.
 
 ## Training
 
-AudioToChart includes a full training pipeline for fine-tuning the ADTOF Frame RNN and training the chord onset decoder. See **[docs/training.md](docs/training.md)** for detailed instructions.
+DrumCharter includes a full training pipeline for fine-tuning the ADTOF Frame RNN and training the chord onset decoder. See **[docs/training.md](docs/training.md)** for detailed instructions.
 
 ## Not Included
 

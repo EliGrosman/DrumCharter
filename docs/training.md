@@ -1,10 +1,10 @@
 # Training
 
-This document covers the full model training pipeline for AudioToChart, from data discovery through model evaluation.
+This document covers the full model training pipeline for DrumCharter, from data discovery through model evaluation.
 
 ## Overview
 
-The training system (`src/audiotochart/training/`) supports two complementary training regimes:
+The training system (`src/drumcharter/training/`) supports two complementary training regimes:
 
 1. **Frame-level training** — trains the ADTOF Frame RNN to produce per-frame activations for 8 drum classes.
 2. **Chord onset decoder training** — trains a transformer-based decoder to predict chord tokens from frame-model candidate onsets.
@@ -38,7 +38,7 @@ Finds `.7z` archives in source directories and selectively extracts:
 - `drums.ogg` — drum audio stem
 - `song.ogg` — full song mix (optional)
 
-Extracted files are cached under `~/.cache/audiotochart/training/` with content-hash-based subdirectories to avoid redundant extraction.
+Extracted files are cached under `~/.cache/drumcharter/training/` with content-hash-based subdirectories to avoid redundant extraction.
 
 ### Spectrogram Computation (`spectrogram.py`)
 
@@ -80,8 +80,8 @@ Provides PyTorch `Dataset` implementations:
 ### CLI
 
 ```bash
-audiotochart train prepare <data_dirs...> --cache-dir ~/.cache/audiotochart/training
-audiotochart train frame --cache-dir ... --output-dir ./runs/frame_run [options]
+drumcharter train prepare <data_dirs...> --cache-dir ~/.cache/drumcharter/training
+drumcharter train frame --cache-dir ... --output-dir ./runs/frame_run [options]
 ```
 
 ### Training Loop (`train.py`)
@@ -128,7 +128,7 @@ Performs song-level evaluation:
 ### Precomputation
 
 ```bash
-audiotochart train precompute-onsets --cache-dir ... --frame-model <dir> --output-dir ./onsets
+drumcharter train precompute-onsets --cache-dir ... --frame-model <dir> --output-dir ./onsets
 ```
 
 Runs the trained frame model over training audio to extract candidate onset positions, frame-level activations, and encoder features. Results are saved as `.npz` files.
@@ -136,7 +136,7 @@ Runs the trained frame model over training audio to extract candidate onset posi
 ### Training
 
 ```bash
-audiotochart train onset-decoder --cache-dir ... --frame-model <dir> --output-dir ./od_run [options]
+drumcharter train onset-decoder --cache-dir ... --frame-model <dir> --output-dir ./od_run [options]
 ```
 
 The chord decoder (`training/onset_decoder.py`) is a transformer trained to predict chord token sequences from onset-conditioned encoder features. Key hyperparameters:

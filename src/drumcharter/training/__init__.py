@@ -1,0 +1,40 @@
+"""Public API for the training subpackage.
+
+Re-exports core types and factory functions used by training pipelines
+and downstream consumers such as the CLI and preprocessing scripts.
+"""
+
+from drumcharter.training.rb_midi import (
+    CLASS_NAMES,
+    NUM_CLASSES,
+    DrumOnset,
+    has_pro_markers,
+    onset_stats,
+    parse_rb_drum_onsets,
+)
+from drumcharter.training.discovery import RBSong, discover_songs
+from drumcharter.training.labels import onsets_to_label_matrix
+from drumcharter.training.dataset import (
+    ChordConditionedDataset,
+    DrumTranscriptionDataset,
+    SongEntry,
+    create_datasets,
+    create_splits,
+)
+
+__all__ = [
+    "CLASS_NAMES",
+    "ChordConditionedDataset",
+    "NUM_CLASSES",
+    "DrumOnset",
+    "DrumTranscriptionDataset",
+    "RBSong",
+    "SongEntry",
+    "create_datasets",
+    "create_splits",
+    "discover_songs",
+    "has_pro_markers",
+    "onset_stats",
+    "onsets_to_label_matrix",
+    "parse_rb_drum_onsets",
+]

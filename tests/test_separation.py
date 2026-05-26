@@ -64,7 +64,7 @@ class TestIsolateDrums:
     def test_writes_output_path(self, tmp_path: Path):
         modules, originals = _mock_demucs_env()
         try:
-            from audiotochart.separation import isolate_drums
+            from drumcharter.separation import isolate_drums
 
             audio = _make_wav(tmp_path, "input.wav")
             out = tmp_path / "drums.wav"
@@ -86,7 +86,7 @@ class TestIsolateDrums:
         modules, originals = _mock_demucs_env()
         try:
             modules["torch"].cuda.is_available.return_value = True
-            from audiotochart.separation import isolate_drums
+            from drumcharter.separation import isolate_drums
 
             audio = _make_wav(tmp_path, "input.wav")
             out = tmp_path / "drums.wav"
@@ -106,7 +106,7 @@ class TestIsolateDrums:
         modules, originals = _mock_demucs_env()
         try:
             modules["torch"].cuda.is_available.return_value = False
-            from audiotochart.separation import isolate_drums
+            from drumcharter.separation import isolate_drums
 
             audio = _make_wav(tmp_path, "input.wav")
 
@@ -116,7 +116,7 @@ class TestIsolateDrums:
             _restore_modules(originals)
 
     def test_file_not_found(self, tmp_path: Path):
-        from audiotochart.separation import isolate_drums
+        from drumcharter.separation import isolate_drums
 
         with pytest.raises(FileNotFoundError):
             isolate_drums(tmp_path / "nonexistent.wav", tmp_path / "out.wav")
@@ -124,7 +124,7 @@ class TestIsolateDrums:
 
 class TestPipelineIntegration:
     def test_skip_separation_passes_original_to_transcriber(self, tmp_path: Path):
-        import audiotochart.pipeline as pipeline
+        import drumcharter.pipeline as pipeline
 
         audio = _make_wav(tmp_path, "song.wav")
         transcriber = MagicMock()
@@ -143,13 +143,13 @@ class TestPipelineIntegration:
         transcriber.transcribe.assert_called_once_with(audio)
 
     def test_separation_calls_isolate_drums(self, tmp_path: Path):
-        import audiotochart.pipeline as pipeline
+        import drumcharter.pipeline as pipeline
 
         audio = _make_wav(tmp_path, "song.wav")
         transcriber = MagicMock()
         transcriber.transcribe.return_value = []
 
-        with patch("audiotochart.separation.isolate_drums") as mock_iso:
+        with patch("drumcharter.separation.isolate_drums") as mock_iso:
             mock_iso.return_value = tmp_path / "drums.wav"
             pipeline.generate_drum_chart_folder(
                 source_audio=audio,
@@ -165,15 +165,15 @@ class TestPipelineIntegration:
         transcriber.transcribe.assert_called_once()
 
     def test_temp_workdir_cleaned_by_default(self, tmp_path: Path):
-        import audiotochart.pipeline as pipeline
+        import drumcharter.pipeline as pipeline
 
         audio = _make_wav(tmp_path, "song.wav")
         transcriber = MagicMock()
         transcriber.transcribe.return_value = []
 
-        with patch("audiotochart.separation.isolate_drums") as mock_iso:
+        with patch("drumcharter.separation.isolate_drums") as mock_iso:
             mock_iso.return_value = tmp_path / "drums.wav"
-            with patch("audiotochart.pipeline.shutil.rmtree") as mock_rmtree:
+            with patch("drumcharter.pipeline.shutil.rmtree") as mock_rmtree:
                 pipeline.generate_drum_chart_folder(
                     source_audio=audio,
                     output_parent=tmp_path / "out3",
@@ -187,14 +187,14 @@ class TestPipelineIntegration:
                 mock_rmtree.assert_called_once()
 
     def test_temp_workdir_cleaned_when_separation_fails(self, tmp_path: Path):
-        import audiotochart.pipeline as pipeline
+        import drumcharter.pipeline as pipeline
 
         audio = _make_wav(tmp_path, "song.wav")
         transcriber = MagicMock()
         transcriber.transcribe.return_value = []
 
-        with patch("audiotochart.separation.isolate_drums", side_effect=RuntimeError("boom")):
-            with patch("audiotochart.pipeline.shutil.rmtree") as mock_rmtree:
+        with patch("drumcharter.separation.isolate_drums", side_effect=RuntimeError("boom")):
+            with patch("drumcharter.pipeline.shutil.rmtree") as mock_rmtree:
                 with pytest.raises(RuntimeError, match="boom"):
                     pipeline.generate_drum_chart_folder(
                         source_audio=audio,
@@ -209,15 +209,15 @@ class TestPipelineIntegration:
                 mock_rmtree.assert_called_once()
 
     def test_temp_workdir_cleaned_when_transcriber_fails(self, tmp_path: Path):
-        import audiotochart.pipeline as pipeline
+        import drumcharter.pipeline as pipeline
 
         audio = _make_wav(tmp_path, "song.wav")
         transcriber = MagicMock()
         transcriber.transcribe.side_effect = RuntimeError("transcribe failed")
 
-        with patch("audiotochart.separation.isolate_drums") as mock_iso:
+        with patch("drumcharter.separation.isolate_drums") as mock_iso:
             mock_iso.return_value = tmp_path / "drums.wav"
-            with patch("audiotochart.pipeline.shutil.rmtree") as mock_rmtree:
+            with patch("drumcharter.pipeline.shutil.rmtree") as mock_rmtree:
                 with pytest.raises(RuntimeError, match="transcribe failed"):
                     pipeline.generate_drum_chart_folder(
                         source_audio=audio,
@@ -232,15 +232,15 @@ class TestPipelineIntegration:
                 mock_rmtree.assert_called_once()
 
     def test_keep_workdir_preserves_temp_dir(self, tmp_path: Path):
-        import audiotochart.pipeline as pipeline
+        import drumcharter.pipeline as pipeline
 
         audio = _make_wav(tmp_path, "song.wav")
         transcriber = MagicMock()
         transcriber.transcribe.return_value = []
 
-        with patch("audiotochart.separation.isolate_drums") as mock_iso:
+        with patch("drumcharter.separation.isolate_drums") as mock_iso:
             mock_iso.return_value = tmp_path / "drums.wav"
-            with patch("audiotochart.pipeline.shutil.rmtree") as mock_rmtree:
+            with patch("drumcharter.pipeline.shutil.rmtree") as mock_rmtree:
                 pipeline.generate_drum_chart_folder(
                     source_audio=audio,
                     output_parent=tmp_path / "out4",

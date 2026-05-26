@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from audiotochart.drums import DrumHit
-from audiotochart.postprocess import (
+from drumcharter.drums import DrumHit
+from drumcharter.postprocess import (
     BeatGrid,
     build_quantize_grid,
     limit_simultaneous_hits,

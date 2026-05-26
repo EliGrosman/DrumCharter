@@ -1,6 +1,6 @@
 # Model Architecture
 
-AudioToChart uses a two-stage modelling approach: a **frame-level CNN-RNN** produces per-frame activations, and an optional **chord onset decoder** refines these into clean chord predictions.
+DrumCharter uses a two-stage modelling approach: a **frame-level CNN-RNN** produces per-frame activations, and an optional **chord onset decoder** refines these into clean chord predictions.
 
 ## Frame-Level Model: ADTOF Frame RNN
 

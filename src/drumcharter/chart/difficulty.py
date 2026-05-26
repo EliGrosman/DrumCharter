@@ -1,0 +1,243 @@
+"""Generate lower pro-drum difficulties from an Expert pro-drum chart."""
+
+from __future__ import annotations
+
+from drumcharter.chart.drum_vocab import (
+    BLUE_PAD as BLUE_PAD,
+    CYMBAL_BLUE as CYMBAL_BLUE,
+    CYMBAL_BY_PAD,
+    CYMBAL_GREEN as CYMBAL_GREEN,
+    CYMBAL_MODIFIERS,
+    CYMBAL_YELLOW as CYMBAL_YELLOW,
+    GREEN_PAD as GREEN_PAD,
+    KICK,
+    PAD_BY_CYMBAL,
+    PAD_NOTES,
+    SNARE,
+    YELLOW_PAD,
+)
+from drumcharter.chart.format import ChartDocument, DrumDifficulty, DrumNote
+
+
+def _group_by_tick(notes: list[DrumNote]) -> dict[int, list[DrumNote]]:
+    """Group drum notes by their tick position.
+
+    Args:
+        notes: Drum notes to group.
+
+    Returns:
+        A dict mapping each tick to the list of notes at that tick.
+    """
+    groups: dict[int, list[DrumNote]] = {}
+    for note in notes:
+        groups.setdefault(note.tick, []).append(note)
+    return groups
+
+
+def _tick_pad_notes(tick_notes: list[DrumNote]) -> set[int]:
+    """Collect pad-only note values at a single tick.
+
+    Args:
+        tick_notes: Notes at one tick.
+
+    Returns:
+        A set of pad note values (excluding cymbal modifiers).
+    """
+    return {note.note for note in tick_notes if note.note in PAD_NOTES}
+
+
+def _has_cymbal_at_tick(tick_notes: list[DrumNote], pad: int) -> bool:
+    """Check if a cymbal modifier exists for a given pad at this tick.
+
+    Args:
+        tick_notes: Notes at one tick.
+        pad: The pad note value to check for a matching cymbal.
+
+    Returns:
+        True if a matching cymbal modifier is present.
+    """
+    modifier = CYMBAL_BY_PAD.get(pad)
+    if modifier is None:
+        return False
+    return any(note.note == modifier for note in tick_notes)
+
+
+def _append_pad_with_cymbal(
+    out: list[DrumNote],
+    *,
+    tick: int,
+    pad: int,
+    tick_notes: list[DrumNote],
+) -> None:
+    """Append a pad note and its optional cymbal modifier at a tick.
+
+    Args:
+        out: Output list to append to.
+        tick: The tick position.
+        pad: The pad note value.
+        tick_notes: All notes at this tick (used to check for cymbal).
+    """
+    out.append(DrumNote(tick=tick, note=pad))
+    modifier = CYMBAL_BY_PAD.get(pad)
+    if modifier is not None and any(note.note == modifier for note in tick_notes):
+        out.append(DrumNote(tick=tick, note=modifier))
+
+
+def _thin_notes(
+    notes: list[DrumNote],
+    min_gap: int,
+    priority: set[int] | None = None,
+) -> list[DrumNote]:
+    """Remove notes that are too close together on the same pad.
+
+    Preserves cymbal modifiers for surviving pads and keeps priority
+    pads regardless of gap.
+
+    Args:
+        notes: Input drum notes.
+        min_gap: Minimum tick gap between consecutive notes on the same pad.
+        priority: Set of pad note values to always keep.
+
+    Returns:
+        Filtered and sorted drum notes.
+    """
+    last_tick_by_pad: dict[int, int] = {}
+    out: list[DrumNote] = []
+
+    for note in sorted(notes, key=lambda n: (n.tick, n.note, n.length)):
+        if note.note in CYMBAL_MODIFIERS:
+            continue
+        if priority and note.note in priority:
+            last_tick_by_pad[note.note] = note.tick
+            out.append(note)
+            continue
+        previous_tick = last_tick_by_pad.get(note.note)
+        if previous_tick is not None and note.tick - previous_tick < min_gap:
+            continue
+        last_tick_by_pad[note.note] = note.tick
+        out.append(note)
+
+    surviving_pads = {(note.tick, note.note) for note in out}
+    for note in notes:
+        pad = PAD_BY_CYMBAL.get(note.note)
+        if pad is not None and (note.tick, pad) in surviving_pads:
+            out.append(note)
+
+    return sorted(out, key=lambda n: (n.tick, n.note, n.length))
+
+
+def _generate_hard(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
+    """Generate Hard pro drums from Expert by thinning dense passages.
+
+    Removes notes on the same pad that are closer than a thirty-second note.
+
+    Args:
+        expert: Expert difficulty drum notes.
+        resolution: Ticks per beat.
+
+    Returns:
+        Hard difficulty drum notes.
+    """
+    thirty_second = resolution // 8
+    return _thin_notes(expert, min_gap=thirty_second)
+
+
+def _generate_medium(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
+    """Generate Medium pro drums from Expert.
+
+    Keeps kick, snare, and yellow-pad-with-cymbal (hi-hat/ride) hits,
+    then thins to an eighth-note minimum gap.
+
+    Args:
+        expert: Expert difficulty drum notes.
+        resolution: Ticks per beat.
+
+    Returns:
+        Medium difficulty drum notes.
+    """
+    eighth = resolution // 2
+    groups = _group_by_tick(expert)
+    kept: list[DrumNote] = []
+
+    for tick in sorted(groups):
+        tick_notes = groups[tick]
+        pads = _tick_pad_notes(tick_notes)
+        if KICK in pads:
+            kept.append(DrumNote(tick=tick, note=KICK))
+        if SNARE in pads:
+            kept.append(DrumNote(tick=tick, note=SNARE))
+        if YELLOW_PAD in pads and _has_cymbal_at_tick(tick_notes, YELLOW_PAD):
+            _append_pad_with_cymbal(
+                kept,
+                tick=tick,
+                pad=YELLOW_PAD,
+                tick_notes=tick_notes,
+            )
+
+    return _thin_notes(kept, min_gap=eighth, priority={KICK, SNARE})
+
+
+def _generate_easy(expert: list[DrumNote], resolution: int) -> list[DrumNote]:
+    """Generate Easy pro drums from Expert.
+
+    Keeps only kick on beats 1/3 and snare on beats 2/4, with hi-hat
+    on every quarter note. Reduces density to quarter-note minimum gaps.
+
+    Args:
+        expert: Expert difficulty drum notes.
+        resolution: Ticks per beat.
+
+    Returns:
+        Easy difficulty drum notes.
+    """
+    quarter = resolution
+    groups = _group_by_tick(expert)
+    kept: list[DrumNote] = []
+    last_kick = -quarter
+    last_snare = -quarter
+    last_hihat = -quarter
+
+    for tick in sorted(groups):
+        tick_notes = groups[tick]
+        pads = _tick_pad_notes(tick_notes)
+        beat_in_bar = round(tick / quarter) % 4
+
+        if KICK in pads and beat_in_bar in (0, 2) and tick - last_kick >= quarter:
+            kept.append(DrumNote(tick=tick, note=KICK))
+            last_kick = tick
+        elif SNARE in pads and beat_in_bar in (1, 3) and tick - last_snare >= quarter:
+            kept.append(DrumNote(tick=tick, note=SNARE))
+            last_snare = tick
+        elif KICK in pads and tick - last_kick >= quarter:
+            kept.append(DrumNote(tick=tick, note=KICK))
+            last_kick = tick
+        elif SNARE in pads and tick - last_snare >= quarter:
+            kept.append(DrumNote(tick=tick, note=SNARE))
+            last_snare = tick
+
+        if (
+            YELLOW_PAD in pads
+            and _has_cymbal_at_tick(tick_notes, YELLOW_PAD)
+            and tick - last_hihat >= quarter
+        ):
+            _append_pad_with_cymbal(
+                kept,
+                tick=tick,
+                pad=YELLOW_PAD,
+                tick_notes=tick_notes,
+            )
+            last_hihat = tick
+
+    return kept
+
+
+def generate_difficulties(doc: ChartDocument) -> None:
+    """Populate Hard, Medium, and Easy pro drums from Expert in place."""
+    expert = doc.drums.get(DrumDifficulty.EXPERT, [])
+    if not expert:
+        return
+
+    resolution = doc.song.resolution
+    doc.drums[DrumDifficulty.HARD] = _generate_hard(expert, resolution)
+    doc.drums[DrumDifficulty.MEDIUM] = _generate_medium(expert, resolution)
+    doc.drums[DrumDifficulty.EASY] = _generate_easy(expert, resolution)

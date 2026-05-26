@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from audiotochart.config import DEFAULT_CHARTER, DEFAULT_CONFIG, load_config, save_config
+from drumcharter.config import DEFAULT_CHARTER, DEFAULT_CONFIG, load_config, save_config
 
 
 def test_config_save_load_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "config.json")
 
     cfg = {
         "backend": "fake",
@@ -30,8 +30,8 @@ def test_config_save_load_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 
 def test_config_missing_file_returns_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "config.json")
 
     loaded = load_config()
     for k, v in DEFAULT_CONFIG.items():
@@ -39,8 +39,8 @@ def test_config_missing_file_returns_defaults(tmp_path: Path, monkeypatch: pytes
 
 
 def test_config_corrupt_json_returns_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "config.json")
 
     (tmp_path / "config.json").write_text("not valid json")
     loaded = load_config()
@@ -49,8 +49,8 @@ def test_config_corrupt_json_returns_defaults(tmp_path: Path, monkeypatch: pytes
 
 
 def test_config_new_keys_merged_from_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "config.json")
 
     save_config({"backend": "adtof"})
     loaded = load_config()
@@ -59,19 +59,19 @@ def test_config_new_keys_merged_from_defaults(tmp_path: Path, monkeypatch: pytes
     assert loaded["quantize"] == DEFAULT_CONFIG["quantize"]
 
 
-def test_default_charter_is_audiotochart_ai() -> None:
+def test_default_charter_is_drumcharter_ai() -> None:
     assert DEFAULT_CONFIG["charter"] == DEFAULT_CHARTER
-    assert DEFAULT_CHARTER == "AudioToChart (AI)"
+    assert DEFAULT_CHARTER == "DrumCharter (AI)"
 
 
 def test_legacy_bare_default_charter_is_migrated(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "config.json")
 
-    save_config({"charter": "AudioToChart"})
+    save_config({"charter": "DrumCharter"})
 
     loaded = load_config()
     assert loaded["charter"] == DEFAULT_CHARTER
@@ -79,8 +79,8 @@ def test_legacy_bare_default_charter_is_migrated(
 
 def test_config_save_creates_parent_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     nested = tmp_path / "deeply" / "nested"
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", nested)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", nested / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", nested)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", nested / "config.json")
 
     save_config({"backend": "fake"})
     assert (nested / "config.json").is_file()
@@ -89,10 +89,10 @@ def test_config_save_creates_parent_dir(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 def test_config_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from audiotochart.config import config_exists
+    from drumcharter.config import config_exists
 
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "config.json")
 
     assert not config_exists()
     save_config({"backend": "fake"})
@@ -115,11 +115,11 @@ def test_config_fallback_used_when_model_dir_missing(tmp_path: Path, monkeypatch
     """Non-interactive mode falls back to config's model_dir."""
     from click.testing import CliRunner
     from unittest.mock import patch
-    from audiotochart.cli import cli
-    from audiotochart.pipeline import generate_drum_chart_folder
+    from drumcharter.cli import cli
+    from drumcharter.pipeline import generate_drum_chart_folder
 
-    monkeypatch.setattr("audiotochart.config._CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("audiotochart.config._CONFIG_PATH", tmp_path / "config.json")
+    monkeypatch.setattr("drumcharter.config._CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("drumcharter.config._CONFIG_PATH", tmp_path / "config.json")
     save_config({"backend": "model", "model_dir": "/nonexistent/model/path"})
 
     audio = tmp_path / "song.wav"
@@ -133,7 +133,7 @@ def test_config_fallback_used_when_model_dir_missing(tmp_path: Path, monkeypatch
         raise SystemExit(0)
 
     runner = CliRunner()
-    with patch.object(generate_drum_chart_folder, "__wrapped__", _capture) if hasattr(generate_drum_chart_folder, "__wrapped__") else patch("audiotochart.cli.generate_drum_chart_folder", side_effect=_capture):
+    with patch.object(generate_drum_chart_folder, "__wrapped__", _capture) if hasattr(generate_drum_chart_folder, "__wrapped__") else patch("drumcharter.cli.generate_drum_chart_folder", side_effect=_capture):
         result = runner.invoke(cli, [
             "generate", str(audio),
             "--backend", "model",

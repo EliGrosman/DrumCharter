@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from audiotochart.tempo import BeatGrid, TempoError, detect_beat_grid
+from drumcharter.tempo import BeatGrid, TempoError, detect_beat_grid
 
 
 def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:
@@ -29,7 +29,7 @@ def test_missing_file_raises_tempo_error(tmp_path: Path) -> None:
 
 def test_beatgrid_produces_valid_sync_track_event() -> None:
     """BeatGrid can be used to construct a valid SyncTrackEvent."""
-    from audiotochart.chart.format import SyncTrackEvent, bpm_to_chart_integer
+    from drumcharter.chart.format import SyncTrackEvent, bpm_to_chart_integer
 
     grid = BeatGrid(bpm=128.0, beat_times=[])
     sync_event = SyncTrackEvent(0, f"B {bpm_to_chart_integer(grid.bpm)}")

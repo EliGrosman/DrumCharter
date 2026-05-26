@@ -6,10 +6,10 @@ from unittest.mock import Mock
 
 from click.testing import CliRunner
 
-from audiotochart.cli import cli
-from audiotochart.drums import DrumHit
-from audiotochart.inference.base import DrumTranscriber
-from audiotochart.inference.fake import FakeTranscriber
+from drumcharter.cli import cli
+from drumcharter.drums import DrumHit
+from drumcharter.inference.base import DrumTranscriber
+from drumcharter.inference.fake import FakeTranscriber
 
 
 def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:
@@ -33,7 +33,7 @@ def test_fake_transcriber_returns_hits(tmp_path: Path) -> None:
 
 
 def test_pipeline_calls_transcriber_once(tmp_path: Path) -> None:
-    import audiotochart.pipeline as pipeline
+    import drumcharter.pipeline as pipeline
     audio = _make_wav(tmp_path, "song.wav", duration_sec=4.0)
     mock_transcriber = Mock(spec=DrumTranscriber)
     mock_transcriber.transcribe.return_value = [
@@ -52,7 +52,7 @@ def test_pipeline_calls_transcriber_once(tmp_path: Path) -> None:
 
 
 def test_backend_output_flows_to_chart(tmp_path: Path) -> None:
-    import audiotochart.pipeline as pipeline
+    import drumcharter.pipeline as pipeline
     audio = _make_wav(tmp_path, "song.wav", duration_sec=4.0)
     folder = pipeline.generate_drum_chart_folder(
         source_audio=audio,

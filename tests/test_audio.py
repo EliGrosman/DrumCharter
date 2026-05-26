@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from audiotochart.audio import AudioError, get_audio_duration_sec
+from drumcharter.audio import AudioError, get_audio_duration_sec
 
 
 def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:

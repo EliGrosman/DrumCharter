@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-import audiotochart.pipeline as pipeline
-from audiotochart.chart.format import DrumDifficulty, SongMetadata
-from audiotochart.chart.midi import iter_drum_midi_hits, midi_to_chart_document
+import drumcharter.pipeline as pipeline
+from drumcharter.chart.format import DrumDifficulty, SongMetadata
+from drumcharter.chart.midi import iter_drum_midi_hits, midi_to_chart_document
 
 pretty_midi = pytest.importorskip("pretty_midi")
 

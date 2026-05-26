@@ -1,10 +1,10 @@
 # Architecture
 
-AudioToChart converts drum audio into Clone Hero `.chart` files. The system is organised into four layers: **pipeline**, **inference**, **chart formatting**, and **training**.
+DrumCharter converts drum audio into Clone Hero `.chart` files. The system is organised into four layers: **pipeline**, **inference**, **chart formatting**, and **training**.
 
 ## Pipeline Layer
 
-The entry point is `audiotochart generate`, defined in `cli.py`. It resolves the selected backend and calls into `pipeline.py`, which orchestrates:
+The entry point is `drumcharter generate`, defined in `cli.py`. It resolves the selected backend and calls into `pipeline.py`, which orchestrates:
 
 1. **Audio loading** (`audio.py`) — reads duration via librosa or WAV header.
 2. **Tempo detection** (`tempo.py`) — librosa-based beat tracking; supports manual BPM override.
@@ -58,12 +58,12 @@ See [training.md](training.md) for full details. The training pipeline:
 
 ## Configuration
 
-User settings are stored in `~/.config/audiotochart/config.json` and managed by `config.py`. The CLI supports both command-line flags and an interactive prompt mode.
+User settings are stored in `~/.config/drumcharter/config.json` and managed by `config.py`. The CLI supports both command-line flags and an interactive prompt mode.
 
 ## File Layout
 
 ```
-src/audiotochart/
+src/drumcharter/
 ├── cli.py              # Click entry point
 ├── pipeline.py         # Chart generation orchestration
 ├── audio.py            / Audio I/O utilities

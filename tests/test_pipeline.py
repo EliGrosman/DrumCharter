@@ -6,7 +6,7 @@ import wave
 from pathlib import Path
 from unittest.mock import patch
 
-import audiotochart.pipeline as pipeline
+import drumcharter.pipeline as pipeline
 
 
 def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:
@@ -37,7 +37,7 @@ def test_generate_drum_chart_folder_writes_clone_hero_song_folder(tmp_path: Path
     ini = (folder / "song.ini").read_text(encoding="utf-8")
     assert "name = Song" in ini
     assert "artist = Artist" in ini
-    assert "charter = AudioToChart (AI)" in ini
+    assert "charter = DrumCharter (AI)" in ini
     assert "diff_drums = 4" in ini
     assert "song_length = 4000" in ini
 
@@ -65,7 +65,7 @@ def test_manual_bpm_bypasses_tempo_detection(tmp_path: Path) -> None:
     """When bpm is provided, detect_beat_grid should not be called."""
     source_audio = _make_wav(tmp_path, "song.wav", duration_sec=2.0)
 
-    with patch("audiotochart.pipeline.detect_beat_grid") as mock_detect:
+    with patch("drumcharter.pipeline.detect_beat_grid") as mock_detect:
         folder = pipeline.generate_drum_chart_folder(
             source_audio=source_audio,
             output_parent=tmp_path / "out",
@@ -86,7 +86,7 @@ def test_detected_beat_times_drive_variable_sync_track(tmp_path: Path) -> None:
         bpm = 120.0
         beat_times = [0.5, 1.0, 1.4]
 
-    with patch("audiotochart.pipeline.detect_beat_grid", return_value=FakeBeatGrid()):
+    with patch("drumcharter.pipeline.detect_beat_grid", return_value=FakeBeatGrid()):
         folder = pipeline.generate_drum_chart_folder(
             source_audio=source_audio,
             output_parent=tmp_path / "out",

@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from audiotochart.cli import BACKENDS, _resolve_backend, cli
-from audiotochart.drums import DrumHit
-from audiotochart.inference.adtof import TranscriptionError
+from drumcharter.cli import BACKENDS, _resolve_backend, cli
+from drumcharter.drums import DrumHit
+from drumcharter.inference.adtof import TranscriptionError
 
 
 def _make_wav(tmp_path: Path, name: str, duration_sec: float, sample_rate: int = 44100) -> Path:
@@ -43,10 +43,10 @@ def _fake_transcribe_empty(drums_wav: Path, midi_out: Path, **kwargs) -> Path:
 
 def test_transcriber_returns_hits(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "audiotochart.inference.adtof._transcribe_drums_to_midi",
+        "drumcharter.inference.adtof._transcribe_drums_to_midi",
         _fake_transcribe,
     )
-    from audiotochart.inference.adtof import AdtofTranscriber
+    from drumcharter.inference.adtof import AdtofTranscriber
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=4.0)
     hits = AdtofTranscriber().transcribe(audio)
@@ -58,10 +58,10 @@ def test_transcriber_returns_hits(monkeypatch, tmp_path: Path) -> None:
 
 def test_empty_midi_raises_error(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "audiotochart.inference.adtof._transcribe_drums_to_midi",
+        "drumcharter.inference.adtof._transcribe_drums_to_midi",
         _fake_transcribe_empty,
     )
-    from audiotochart.inference.adtof import AdtofTranscriber, TranscriptionError
+    from drumcharter.inference.adtof import AdtofTranscriber, TranscriptionError
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=4.0)
     with pytest.raises(TranscriptionError, match="empty MIDI"):
@@ -77,7 +77,7 @@ def test_missing_deps_clear_error(tmp_path: Path) -> None:
     except ImportError:
         pass
 
-    from audiotochart.inference.adtof import AdtofTranscriber
+    from drumcharter.inference.adtof import AdtofTranscriber
 
     audio = _make_wav(tmp_path, "song.wav", duration_sec=4.0)
     with pytest.raises(ImportError, match="uv sync --extra ai"):
@@ -95,7 +95,7 @@ def test_resolve_backend_available() -> None:
 
 def test_cli_backend_adtof(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "audiotochart.inference.adtof._transcribe_drums_to_midi",
+        "drumcharter.inference.adtof._transcribe_drums_to_midi",
         _fake_transcribe,
     )
 

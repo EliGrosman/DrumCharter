@@ -1,4 +1,4 @@
-from audiotochart.cli import cli
+from drumcharter.cli import cli
 
 
 def main() -> None:

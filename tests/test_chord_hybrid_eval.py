@@ -7,11 +7,11 @@ import pytest
 
 pytest.importorskip("torch")
 
-from audiotochart.training.chord_hybrid_eval import (
+from drumcharter.training.chord_hybrid_eval import (
     PreparedChordHybridSong,
     evaluate_prepared_chord_hybrid,
 )
-from audiotochart.training.dataset import SongEntry
+from drumcharter.training.dataset import SongEntry
 
 
 def test_chord_hybrid_eval_reports_baseline_and_hybrid_metrics(
@@ -48,7 +48,7 @@ def test_chord_hybrid_eval_reports_baseline_and_hybrid_metrics(
         return [(10, 5), (20, 6)]
 
     monkeypatch.setattr(
-        "audiotochart.training.chord_hybrid_eval.decode_chord_hybrid_onsets",
+        "drumcharter.training.chord_hybrid_eval.decode_chord_hybrid_onsets",
         fake_decode,
     )
 

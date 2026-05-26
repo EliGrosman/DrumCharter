@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from audiotochart.chart import DrumDifficulty
-from audiotochart.chart.convert import (
+from drumcharter.chart import DrumDifficulty
+from drumcharter.chart.convert import (
     INSTRUMENT_MAP,
     build_beat_tempo_map,
     build_sync_track_from_beats,
@@ -14,9 +14,9 @@ from audiotochart.chart.convert import (
     seconds_to_tick_tempo_map,
     tick_to_seconds_tempo_map,
 )
-from audiotochart.chart.fake import create_fake_drum_chart
-from audiotochart.chart.format import SongMetadata
-from audiotochart.drums import DrumHit
+from drumcharter.chart.fake import create_fake_drum_chart
+from drumcharter.chart.format import SongMetadata
+from drumcharter.drums import DrumHit
 
 
 # ---------------------------------------------------------------------------

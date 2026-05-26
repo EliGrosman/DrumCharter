@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from audiotochart.chart.difficulty import (
+from drumcharter.chart.difficulty import (
     CYMBAL_YELLOW,
     KICK,
     SNARE,
     YELLOW_PAD,
     generate_difficulties,
 )
-from audiotochart.chart.format import ChartDocument, DrumDifficulty, DrumNote, SongMetadata
+from drumcharter.chart.format import ChartDocument, DrumDifficulty, DrumNote, SongMetadata
 
 RESOLUTION = 192
 

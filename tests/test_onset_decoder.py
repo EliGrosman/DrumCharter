@@ -8,10 +8,10 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from audiotochart.chart.drum_vocab import PRO8_LABELS
-from audiotochart.inference.checkpoint import ModelBundle
-from audiotochart.inference.model import ModelTranscriber
-from audiotochart.inference.onset_decoder import (
+from drumcharter.chart.drum_vocab import PRO8_LABELS
+from drumcharter.inference.checkpoint import ModelBundle
+from drumcharter.inference.model import ModelTranscriber
+from drumcharter.inference.onset_decoder import (
     CHORD_NULL,
     aggregate_chord_features,
     build_chord_vocabulary,
@@ -140,7 +140,7 @@ def test_decoder_loader_accepts_training_decoder_state(monkeypatch, tmp_path: Pa
     torch = pytest.importorskip("torch")
     import torch.nn as nn
 
-    from audiotochart.onset_decoder_common import build_onset_conditioned_model
+    from drumcharter.onset_decoder_common import build_onset_conditioned_model
 
     class FakeEncoder(nn.Module):
         pass
@@ -162,7 +162,7 @@ def test_decoder_loader_accepts_training_decoder_state(monkeypatch, tmp_path: Pa
     model = build_onset_conditioned_model(FakeEncoder(), config=config, vocab_size=4)
     torch.save({"decoder_state": model.decoder.state_dict(), "config": config}, decoder_dir / "best.pt")
     monkeypatch.setattr(
-        "audiotochart.inference.onset_decoder._build_decoder_encoder",
+        "drumcharter.inference.onset_decoder._build_decoder_encoder",
         FakeEncoder,
     )
 
@@ -210,10 +210,10 @@ def test_model_transcriber_applies_decoder_before_tom_consistency(tmp_path: Path
     with (
         patch.object(ModelTranscriber, "_ensure_loaded", return_value=bundle),
         patch.object(ModelTranscriber, "_ensure_onset_decoder_loaded", return_value=object()),
-        patch("audiotochart.inference.model._compute_mel_spectrogram", return_value=(spec, 10.0)),
-        patch("audiotochart.inference.onset_decoder.refine_chord_onsets", side_effect=_fake_refine),
+        patch("drumcharter.inference.model._compute_mel_spectrogram", return_value=(spec, 10.0)),
+        patch("drumcharter.inference.onset_decoder.refine_chord_onsets", side_effect=_fake_refine),
         patch(
-            "audiotochart.inference.tom_consistency.apply_tom_consistency",
+            "drumcharter.inference.tom_consistency.apply_tom_consistency",
             side_effect=_fake_tom_consistency,
         ),
     ):

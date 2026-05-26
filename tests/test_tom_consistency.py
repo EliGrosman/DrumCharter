@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from audiotochart.inference.tom_consistency import apply_tom_consistency
+from drumcharter.inference.tom_consistency import apply_tom_consistency
 
 
 def test_tom_consistency_empty_input() -> None:

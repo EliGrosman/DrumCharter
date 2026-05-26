@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from audiotochart.training.cqs import compute_cqs
+from drumcharter.training.cqs import compute_cqs
 
 
 def test_cqs_exact_match_scores_one() -> None:
